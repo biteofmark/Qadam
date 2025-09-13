@@ -1,8 +1,34 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { insertBlockSchema, insertVariantSchema, insertSubjectSchema, insertQuestionSchema, insertAnswerSchema, insertTestResultSchema } from "@shared/schema";
+
+// Authentication middleware
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ message: "Требуется авторизация" });
+  }
+  next();
+}
+
+// Admin authorization middleware
+function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ message: "Требуется авторизация" });
+  }
+  
+  if (!isAdmin(req.user)) {
+    return res.status(403).json({ message: "Требуются права администратора" });
+  }
+  
+  next();
+}
+
+// Helper function to check if user is admin
+function isAdmin(user: any): boolean {
+  return user && user.username === "admin";
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication
@@ -30,7 +56,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/blocks", async (req, res) => {
+  app.post("/api/blocks", requireAdmin, async (req, res) => {
     try {
       const validatedData = insertBlockSchema.parse(req.body);
       const block = await storage.createBlock(validatedData);
@@ -40,7 +66,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/blocks/:id", async (req, res) => {
+  app.put("/api/blocks/:id", requireAdmin, async (req, res) => {
     try {
       const validatedData = insertBlockSchema.partial().parse(req.body);
       const block = await storage.updateBlock(req.params.id, validatedData);
@@ -53,7 +79,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/blocks/:id", async (req, res) => {
+  app.delete("/api/blocks/:id", requireAdmin, async (req, res) => {
     try {
       await storage.deleteBlock(req.params.id);
       res.status(204).send();
@@ -84,7 +110,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/variants", async (req, res) => {
+  app.post("/api/variants", requireAdmin, async (req, res) => {
     try {
       const validatedData = insertVariantSchema.parse(req.body);
       const variant = await storage.createVariant(validatedData);
@@ -104,7 +130,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/subjects", async (req, res) => {
+  app.post("/api/subjects", requireAdmin, async (req, res) => {
     try {
       const validatedData = insertSubjectSchema.parse(req.body);
       const subject = await storage.createSubject(validatedData);
@@ -124,7 +150,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/questions", async (req, res) => {
+  app.post("/api/questions", requireAdmin, async (req, res) => {
     try {
       const validatedData = insertQuestionSchema.parse(req.body);
       const question = await storage.createQuestion(validatedData);
@@ -144,7 +170,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/answers", async (req, res) => {
+  app.post("/api/answers", requireAdmin, async (req, res) => {
     try {
       const validatedData = insertAnswerSchema.parse(req.body);
       const answer = await storage.createAnswer(validatedData);
@@ -203,11 +229,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/test-results", async (req, res) => {
+  app.post("/api/test-results", requireAuth, async (req, res) => {
     try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ message: "Требуется авторизация" });
-      }
 
       const { variantId, answers, timeSpent } = req.body;
       
@@ -271,11 +294,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // User profile routes
-  app.get("/api/profile", async (req, res) => {
+  app.get("/api/profile", requireAuth, async (req, res) => {
     try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ message: "Требуется авторизация" });
-      }
 
       const testResults = await storage.getTestResultsByUser(req.user?.id!);
       const ranking = await storage.getUserRanking(req.user?.id!);
@@ -293,11 +313,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get latest test result for current user
-  app.get("/api/profile/latest-result", async (req, res) => {
+  app.get("/api/profile/latest-result", requireAuth, async (req, res) => {
     try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ message: "Требуется авторизация" });
-      }
 
       const testResults = await storage.getTestResultsByUser(req.user?.id!);
       

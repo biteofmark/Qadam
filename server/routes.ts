@@ -209,9 +209,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Требуется авторизация" });
       }
 
+      const { variantId, answers, timeSpent } = req.body;
+      
+      if (!variantId || !answers || timeSpent === undefined) {
+        return res.status(400).json({ message: "Недостаточно данных" });
+      }
+
+      // Get all questions for this variant to calculate score
+      const subjects = await storage.getSubjectsByVariant(variantId);
+      let totalQuestions = 0;
+      let correctAnswers = 0;
+      
+      for (const subject of subjects) {
+        const questions = await storage.getQuestionsBySubject(subject.id);
+        for (const question of questions) {
+          totalQuestions++;
+          const questionAnswers = await storage.getAnswersByQuestion(question.id);
+          const userAnswerId = answers[question.id];
+          
+          if (userAnswerId) {
+            const selectedAnswer = questionAnswers.find(a => a.id === userAnswerId);
+            if (selectedAnswer?.isCorrect) {
+              correctAnswers++;
+            }
+          }
+        }
+      }
+      
+      const percentage = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+      
       const validatedData = insertTestResultSchema.parse({
-        ...req.body,
         userId: req.user?.id,
+        variantId,
+        score: correctAnswers,
+        totalQuestions,
+        percentage,
+        timeSpent,
       });
 
       const result = await storage.createTestResult(validatedData);
@@ -256,6 +289,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ message: "Ошибка получения профиля" });
+    }
+  });
+
+  // Get latest test result for current user
+  app.get("/api/profile/latest-result", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Требуется авторизация" });
+      }
+
+      const testResults = await storage.getTestResultsByUser(req.user?.id!);
+      
+      if (testResults.length === 0) {
+        return res.status(404).json({ message: "Результаты тестов не найдены" });
+      }
+
+      // Sort by completedAt and get the latest one
+      const latestResult = testResults.sort((a, b) => 
+        new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime()
+      )[0];
+
+      res.json(latestResult);
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка получения последнего результата" });
     }
   });
 

@@ -162,6 +162,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Вариант не найден" });
       }
 
+      // Get the block for this variant
+      const block = await storage.getBlock(variant.blockId);
+      if (!block) {
+        return res.status(404).json({ message: "Блок не найден" });
+      }
+
       const subjects = await storage.getSubjectsByVariant(req.params.variantId);
       const testData = [];
 
@@ -171,9 +177,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         for (const question of questions) {
           const answers = await storage.getAnswersByQuestion(question.id);
+          // Filter out isCorrect field to prevent revealing correct answers to client
+          const safeAnswers = answers.map(answer => ({
+            id: answer.id,
+            text: answer.text,
+          }));
           questionsWithAnswers.push({
             ...question,
-            answers,
+            answers: safeAnswers,
           });
         }
 
@@ -184,7 +195,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json({
-        variant,
+        variant: { ...variant, block },
         testData,
       });
     } catch (error) {

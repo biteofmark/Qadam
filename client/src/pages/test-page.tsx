@@ -22,7 +22,6 @@ interface TestQuestion {
   answers: Array<{
     id: string;
     text: string;
-    isCorrect: boolean;
   }>;
 }
 
@@ -192,7 +191,7 @@ export default function TestPage() {
               </p>
             </div>
             <TestTimer 
-              initialTime={timeLeft}
+              initialTime={240 * 60}
               onTimeUp={handleTimeUp}
               onTick={setTimeLeft}
             />

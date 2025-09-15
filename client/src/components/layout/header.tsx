@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import NotificationBell from "@/components/notification-bell";
 
 export default function Header() {
   const { user, logoutMutation } = useAuth();
@@ -20,6 +21,7 @@ export default function Header() {
   const navigation = [
     { href: "/", label: "Главная", icon: "fas fa-home" },
     { href: "/profile", label: "Мой профиль", icon: "fas fa-user" },
+    { href: "/notifications", label: "Уведомления", icon: "fas fa-bell" },
     { href: "/analytics", label: "Аналитика", icon: "fas fa-chart-line" },
     { href: "/ranking", label: "Рейтинг", icon: "fas fa-trophy" },
     { href: "/admin", label: "Админка", icon: "fas fa-cog", adminOnly: true },
@@ -134,6 +136,9 @@ export default function Header() {
             >
               <i className={`fas ${theme === "light" ? "fa-moon" : "fa-sun"}`}></i>
             </Button>
+            
+            {/* Notification Bell */}
+            {user && <NotificationBell />}
             
             {user ? (
               <DropdownMenu>

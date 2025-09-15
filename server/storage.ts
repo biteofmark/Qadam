@@ -1,6 +1,8 @@
 import { type User, type InsertUser, type Block, type InsertBlock, type Variant, type InsertVariant, 
          type Subject, type InsertSubject, type Question, type InsertQuestion, type Answer, type InsertAnswer,
          type TestResult, type InsertTestResult, type SubjectProgress, type UserRanking,
+         type Notification, type InsertNotification, type NotificationSettings, type InsertNotificationSettings,
+         type Reminder, type InsertReminder, type NotificationType,
          type AnalyticsOverview, type SubjectAggregate, type HistoryPoint, type CorrectnessBreakdown, type ComparisonStats } from "@shared/schema";
 import { randomUUID } from "crypto";
 import session from "express-session";
@@ -66,6 +68,27 @@ export interface IStorage {
   getCorrectnessBreakdown(userId: string, rangeDays?: number): Promise<CorrectnessBreakdown[]>;
   getComparison(userId: string): Promise<ComparisonStats>;
   
+  // Notifications
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  getNotifications(userId: string, page?: number, limit?: number, type?: NotificationType): Promise<{ notifications: Notification[], total: number }>;
+  getUnreadNotificationCount(userId: string): Promise<number>;
+  countNotificationsByTypeSince(userId: string, type: NotificationType, since: Date): Promise<number>;
+  markNotificationAsRead(id: string, userId: string): Promise<void>;
+  markAllNotificationsAsRead(userId: string): Promise<void>;
+  deleteNotification(id: string, userId: string): Promise<void>;
+  
+  // Notification Settings
+  getNotificationSettings(userId: string): Promise<NotificationSettings | undefined>;
+  upsertNotificationSettings(settings: InsertNotificationSettings): Promise<NotificationSettings>;
+  
+  // Reminders
+  getReminders(userId: string): Promise<Reminder[]>;
+  createReminder(reminder: InsertReminder): Promise<Reminder>;
+  updateReminder(id: string, reminder: Partial<InsertReminder>): Promise<Reminder | undefined>;
+  deleteReminder(id: string, userId: string): Promise<void>;
+  getDueReminders(): Promise<Reminder[]>;
+  markReminderAsSent(id: string): Promise<void>;
+  
   sessionStore: session.Store;
 }
 
@@ -79,6 +102,9 @@ export class MemStorage implements IStorage {
   private testResults: Map<string, TestResult>;
   private subjectProgress: Map<string, SubjectProgress>;
   private userRankings: Map<string, UserRanking>;
+  private notifications: Map<string, Notification>;
+  private notificationSettings: Map<string, NotificationSettings>;
+  private reminders: Map<string, Reminder>;
   
   sessionStore: session.Store;
 
@@ -92,6 +118,9 @@ export class MemStorage implements IStorage {
     this.testResults = new Map();
     this.subjectProgress = new Map();
     this.userRankings = new Map();
+    this.notifications = new Map();
+    this.notificationSettings = new Map();
+    this.reminders = new Map();
     
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000,
@@ -688,6 +717,140 @@ export class MemStorage implements IStorage {
       percentile,
       topUserScore,
     };
+  }
+
+  // Notification methods
+  async createNotification(insertNotification: InsertNotification): Promise<Notification> {
+    const id = randomUUID();
+    const notification: Notification = {
+      ...insertNotification,
+      id,
+      createdAt: new Date(),
+      readAt: null,
+    };
+    this.notifications.set(id, notification);
+    return notification;
+  }
+
+  async getNotifications(userId: string, page: number = 1, limit: number = 10, type?: NotificationType): Promise<{ notifications: Notification[], total: number }> {
+    const userNotifications = Array.from(this.notifications.values())
+      .filter(n => n.userId === userId && (!type || n.type === type))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    
+    const total = userNotifications.length;
+    const offset = (page - 1) * limit;
+    const notifications = userNotifications.slice(offset, offset + limit);
+    
+    return { notifications, total };
+  }
+
+  async getUnreadNotificationCount(userId: string): Promise<number> {
+    return Array.from(this.notifications.values())
+      .filter(n => n.userId === userId && !n.isRead).length;
+  }
+
+  async markNotificationAsRead(id: string, userId: string): Promise<void> {
+    const notification = this.notifications.get(id);
+    if (notification && notification.userId === userId) {
+      notification.isRead = true;
+      notification.readAt = new Date();
+      this.notifications.set(id, notification);
+    }
+  }
+
+  async markAllNotificationsAsRead(userId: string): Promise<void> {
+    for (const [id, notification] of this.notifications.entries()) {
+      if (notification.userId === userId && !notification.isRead) {
+        notification.isRead = true;
+        notification.readAt = new Date();
+        this.notifications.set(id, notification);
+      }
+    }
+  }
+
+  async deleteNotification(id: string, userId: string): Promise<void> {
+    const notification = this.notifications.get(id);
+    if (notification && notification.userId === userId) {
+      this.notifications.delete(id);
+    }
+  }
+
+  async countNotificationsByTypeSince(userId: string, type: NotificationType, since: Date): Promise<number> {
+    return Array.from(this.notifications.values())
+      .filter(n => 
+        n.userId === userId && 
+        n.type === type && 
+        new Date(n.createdAt) >= since
+      ).length;
+  }
+  }
+
+  // Notification Settings methods
+  async getNotificationSettings(userId: string): Promise<NotificationSettings | undefined> {
+    return this.notificationSettings.get(userId);
+  }
+
+  async upsertNotificationSettings(settings: InsertNotificationSettings): Promise<NotificationSettings> {
+    const existingSettings = this.notificationSettings.get(settings.userId);
+    const updatedSettings: NotificationSettings = {
+      ...existingSettings,
+      ...settings,
+      updatedAt: new Date(),
+    };
+    this.notificationSettings.set(settings.userId, updatedSettings);
+    return updatedSettings;
+  }
+
+  // Reminder methods
+  async getReminders(userId: string): Promise<Reminder[]> {
+    return Array.from(this.reminders.values())
+      .filter(r => r.userId === userId && r.isActive)
+      .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
+  }
+
+  async createReminder(insertReminder: InsertReminder): Promise<Reminder> {
+    const id = randomUUID();
+    const reminder: Reminder = {
+      ...insertReminder,
+      id,
+      createdAt: new Date(),
+      lastSentAt: null,
+    };
+    this.reminders.set(id, reminder);
+    return reminder;
+  }
+
+  async updateReminder(id: string, reminderUpdate: Partial<InsertReminder>): Promise<Reminder | undefined> {
+    const reminder = this.reminders.get(id);
+    if (!reminder) return undefined;
+    
+    const updatedReminder = {
+      ...reminder,
+      ...reminderUpdate,
+    };
+    this.reminders.set(id, updatedReminder);
+    return updatedReminder;
+  }
+
+  async deleteReminder(id: string, userId: string): Promise<void> {
+    const reminder = this.reminders.get(id);
+    if (reminder && reminder.userId === userId) {
+      this.reminders.delete(id);
+    }
+  }
+
+  async getDueReminders(): Promise<Reminder[]> {
+    const now = new Date();
+    return Array.from(this.reminders.values())
+      .filter(r => r.isActive && new Date(r.dueAt) <= now);
+  }
+
+  async markReminderAsSent(id: string): Promise<void> {
+    const reminder = this.reminders.get(id);
+    if (reminder) {
+      reminder.lastSentAt = new Date();
+      this.reminders.set(id, reminder);
+    }
   }
 }
 

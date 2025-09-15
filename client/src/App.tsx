@@ -12,6 +12,7 @@ import BlockVariantsPage from "@/pages/block-variants";
 import TestPage from "@/pages/test-page";
 import ResultsPage from "@/pages/results-page";
 import ProfilePage from "@/pages/profile-page";
+import NotificationsPage from "@/pages/notifications-page";
 import AdminPage from "@/pages/admin-page";
 import RankingPage from "@/pages/ranking-page";
 import AnalyticsPage from "@/pages/analytics-page";
@@ -25,6 +26,7 @@ function Router() {
       <ProtectedRoute path="/test/:variantId" component={() => <TestPage />} />
       <ProtectedRoute path="/results" component={() => <ResultsPage />} />
       <ProtectedRoute path="/profile" component={() => <ProfilePage />} />
+      <ProtectedRoute path="/notifications" component={() => <NotificationsPage />} />
       <ProtectedRoute path="/analytics" component={() => <AnalyticsPage />} />
       <ProtectedRoute path="/admin" component={() => <AdminPage />} />
       <ProtectedRoute path="/ranking" component={() => <RankingPage />} />

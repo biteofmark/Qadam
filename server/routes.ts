@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { insertBlockSchema, insertVariantSchema, insertSubjectSchema, insertQuestionSchema, insertAnswerSchema, insertTestResultSchema,
+         insertNotificationSchema, insertNotificationSettingsSchema, insertReminderSchema, notificationTypeSchema,
          analyticsOverviewSchema, subjectAggregateSchema, historyPointSchema, correctnessBreakdownSchema, comparisonStatsSchema } from "@shared/schema";
 
 // Authentication middleware
@@ -288,6 +289,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Create test completion notification
+      const variant = await storage.getVariant(variantId);
+      if (variant) {
+        let achievementMessage = "";
+        if (percentage >= 90) {
+          achievementMessage = " Отличная работа! 🌟";
+        } else if (percentage >= 70) {
+          achievementMessage = " Хорошо! 👍";
+        }
+
+        await storage.createNotification({
+          userId: req.user?.id!,
+          type: "TEST_COMPLETED",
+          title: "Тест завершен",
+          message: `Вы завершили тест ${variant.name}. Результат: ${correctAnswers}/${totalQuestions} (${Math.round(percentage)}%).${achievementMessage}`,
+          metadata: {
+            testResultId: result.id,
+            variantId: variant.id,
+            score: correctAnswers,
+            totalQuestions,
+            percentage: Math.round(percentage),
+            timeSpent,
+          },
+          isRead: false,
+          channels: ["in_app"],
+        });
+
+        // Create achievement notification for high scores
+        if (percentage >= 95) {
+          await storage.createNotification({
+            userId: req.user?.id!,
+            type: "ACHIEVEMENT",
+            title: "Новое достижение! 🏆",
+            message: `Превосходный результат! Вы набрали ${Math.round(percentage)}% в тесте ${variant.name}. Поздравляем!`,
+            metadata: {
+              achievement: "HIGH_SCORE",
+              testResultId: result.id,
+              percentage: Math.round(percentage),
+            },
+            isRead: false,
+            channels: ["in_app"],
+          });
+        }
+      }
+
       res.status(201).json(result);
     } catch (error) {
       res.status(400).json({ message: "Ошибка сохранения результата" });
@@ -416,6 +462,166 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(validatedData);
     } catch (error) {
       res.status(500).json({ message: "Ошибка получения сравнительной аналитики" });
+    }
+  });
+
+  // Notification routes
+  app.get("/api/notifications", requireAuth, async (req, res) => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const type = req.query.type ? notificationTypeSchema.parse(req.query.type) : undefined;
+      
+      const result = await storage.getNotifications(req.user?.id!, page, limit, type);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка получения уведомлений" });
+    }
+  });
+
+  app.get("/api/notifications/unread-count", requireAuth, async (req, res) => {
+    try {
+      const count = await storage.getUnreadNotificationCount(req.user?.id!);
+      res.json({ count });
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка получения количества непрочитанных уведомлений" });
+    }
+  });
+
+  app.post("/api/notifications/:id/mark-read", requireAuth, async (req, res) => {
+    try {
+      await storage.markNotificationAsRead(req.params.id, req.user?.id!);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка отметки уведомления как прочитанного" });
+    }
+  });
+
+  app.post("/api/notifications/mark-all-read", requireAuth, async (req, res) => {
+    try {
+      await storage.markAllNotificationsAsRead(req.user?.id!);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка отметки всех уведомлений как прочитанных" });
+    }
+  });
+
+  app.delete("/api/notifications/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteNotification(req.params.id, req.user?.id!);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка удаления уведомления" });
+    }
+  });
+
+  app.post("/api/notifications/broadcast", requireAdmin, async (req, res) => {
+    try {
+      const validatedData = insertNotificationSchema.omit({ userId: true }).parse(req.body);
+      
+      // Get all users and create notifications for each
+      const rankings = await storage.getAllRankings();
+      const notifications = [];
+      
+      for (const ranking of rankings) {
+        const notification = await storage.createNotification({
+          ...validatedData,
+          userId: ranking.userId,
+        });
+        notifications.push(notification);
+      }
+      
+      res.status(201).json({ created: notifications.length });
+    } catch (error) {
+      res.status(400).json({ message: "Ошибка рассылки уведомлений" });
+    }
+  });
+
+  // Notification Settings routes
+  app.get("/api/notification-settings", requireAuth, async (req, res) => {
+    try {
+      const settings = await storage.getNotificationSettings(req.user?.id!);
+      if (!settings) {
+        // Return default settings if none exist
+        const defaultSettings = {
+          userId: req.user?.id!,
+          testCompletedEnabled: true,
+          testReminderEnabled: true,
+          systemMessageEnabled: true,
+          achievementEnabled: true,
+          inAppEnabled: true,
+          pushEnabled: false,
+          emailEnabled: false,
+          reminderIntervalMinutes: 30,
+          maxRemindersPerDay: 3,
+          quietHoursStart: "22:00",
+          quietHoursEnd: "08:00",
+          updatedAt: new Date(),
+        };
+        res.json(defaultSettings);
+      } else {
+        res.json(settings);
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка получения настроек уведомлений" });
+    }
+  });
+
+  app.put("/api/notification-settings", requireAuth, async (req, res) => {
+    try {
+      const validatedData = insertNotificationSettingsSchema.parse({
+        ...req.body,
+        userId: req.user?.id!,
+      });
+      const settings = await storage.upsertNotificationSettings(validatedData);
+      res.json(settings);
+    } catch (error) {
+      res.status(400).json({ message: "Ошибка обновления настроек уведомлений" });
+    }
+  });
+
+  // Reminder routes
+  app.get("/api/reminders", requireAuth, async (req, res) => {
+    try {
+      const reminders = await storage.getReminders(req.user?.id!);
+      res.json(reminders);
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка получения напоминаний" });
+    }
+  });
+
+  app.post("/api/reminders", requireAuth, async (req, res) => {
+    try {
+      const validatedData = insertReminderSchema.parse({
+        ...req.body,
+        userId: req.user?.id!,
+      });
+      const reminder = await storage.createReminder(validatedData);
+      res.status(201).json(reminder);
+    } catch (error) {
+      res.status(400).json({ message: "Ошибка создания напоминания" });
+    }
+  });
+
+  app.patch("/api/reminders/:id", requireAuth, async (req, res) => {
+    try {
+      const validatedData = insertReminderSchema.partial().parse(req.body);
+      const reminder = await storage.updateReminder(req.params.id, validatedData);
+      if (!reminder) {
+        return res.status(404).json({ message: "Напоминание не найдено" });
+      }
+      res.json(reminder);
+    } catch (error) {
+      res.status(400).json({ message: "Ошибка обновления напоминания" });
+    }
+  });
+
+  app.delete("/api/reminders/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteReminder(req.params.id, req.user?.id!);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка удаления напоминания" });
     }
   });
 

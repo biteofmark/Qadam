@@ -1,7 +1,57 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, real, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, real, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Notification types enum
+export const notificationTypeSchema = z.enum([
+  "TEST_COMPLETED",
+  "TEST_REMINDER", 
+  "SYSTEM_MESSAGE",
+  "ACHIEVEMENT"
+]);
+
+export type NotificationType = z.infer<typeof notificationTypeSchema>;
+
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  metadata: jsonb("metadata"),
+  isRead: boolean("is_read").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  readAt: timestamp("read_at"),
+  channels: text("channels").array().default([]),
+});
+
+export const notificationSettings = pgTable("notification_settings", {
+  userId: varchar("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  testCompletedEnabled: boolean("test_completed_enabled").default(true),
+  testReminderEnabled: boolean("test_reminder_enabled").default(true),
+  systemMessageEnabled: boolean("system_message_enabled").default(true),
+  achievementEnabled: boolean("achievement_enabled").default(true),
+  inAppEnabled: boolean("in_app_enabled").default(true),
+  pushEnabled: boolean("push_enabled").default(false),
+  emailEnabled: boolean("email_enabled").default(false),
+  reminderIntervalMinutes: integer("reminder_interval_minutes").default(30),
+  maxRemindersPerDay: integer("max_reminders_per_day").default(3),
+  quietHoursStart: text("quiet_hours_start").default("22:00"),
+  quietHoursEnd: text("quiet_hours_end").default("08:00"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const reminders = pgTable("reminders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  variantId: varchar("variant_id").notNull().references(() => variants.id, { onDelete: "cascade" }),
+  dueAt: timestamp("due_at").notNull(),
+  recurrence: text("recurrence"),
+  lastSentAt: timestamp("last_sent_at"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -101,6 +151,22 @@ export const insertTestResultSchema = createInsertSchema(testResults).omit({
   completedAt: true,
 });
 
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+  readAt: true,
+});
+
+export const insertNotificationSettingsSchema = createInsertSchema(notificationSettings).omit({
+  updatedAt: true,
+});
+
+export const insertReminderSchema = createInsertSchema(reminders).omit({
+  id: true,
+  createdAt: true,
+  lastSentAt: true,
+});
+
 // Analytics Zod DTO schemas
 export const analyticsOverviewSchema = z.object({
   totalTests: z.number(),
@@ -169,6 +235,16 @@ export type InsertTestResult = z.infer<typeof insertTestResultSchema>;
 
 export type SubjectProgress = typeof subjectProgress.$inferSelect;
 export type UserRanking = typeof userRankings.$inferSelect;
+
+// Notification types
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+
+export type NotificationSettings = typeof notificationSettings.$inferSelect;
+export type InsertNotificationSettings = z.infer<typeof insertNotificationSettingsSchema>;
+
+export type Reminder = typeof reminders.$inferSelect;
+export type InsertReminder = z.infer<typeof insertReminderSchema>;
 
 // Analytics types
 export type AnalyticsOverview = z.infer<typeof analyticsOverviewSchema>;

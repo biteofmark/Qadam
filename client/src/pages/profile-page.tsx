@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import type { NotificationSettings, InsertNotificationSettings } from "@shared/schema";
 
 interface ProfileData {
   user: any;
@@ -17,10 +24,38 @@ interface ProfileData {
 
 export default function ProfilePage() {
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const { data: profileData, isLoading } = useQuery<ProfileData>({
     queryKey: ["/api/profile"],
     enabled: !!user,
+  });
+
+  // Query for notification settings
+  const { data: notificationSettings, isLoading: settingsLoading } = useQuery<NotificationSettings>({
+    queryKey: ["/api/notification-settings"],
+    enabled: !!user,
+  });
+
+  // Mutation to update notification settings
+  const updateSettingsMutation = useMutation({
+    mutationFn: (settings: Partial<InsertNotificationSettings>) => 
+      apiRequest("/api/notification-settings", { 
+        method: "PUT", 
+        body: JSON.stringify(settings),
+        headers: { "Content-Type": "application/json" }
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notification-settings"] });
+      toast({ title: "Настройки уведомлений сохранены" });
+    },
+    onError: () => {
+      toast({ 
+        title: "Ошибка", 
+        description: "Не удалось сохранить настройки",
+        variant: "destructive" 
+      });
+    },
   });
 
   if (isLoading) {
@@ -93,10 +128,11 @@ export default function ProfilePage() {
         </div>
 
         <Tabs defaultValue="results" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="results" data-testid="tab-results">Результаты тестов</TabsTrigger>
             <TabsTrigger value="progress" data-testid="tab-progress">Прогресс по предметам</TabsTrigger>
             <TabsTrigger value="achievements" data-testid="tab-achievements">Достижения</TabsTrigger>
+            <TabsTrigger value="settings" data-testid="tab-settings">Настройки</TabsTrigger>
           </TabsList>
 
           <TabsContent value="results" className="space-y-4">
@@ -303,6 +339,253 @@ export default function ProfilePage() {
                     </div>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Настройки уведомлений</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {settingsLoading ? (
+                  <div className="space-y-4">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <Skeleton key={i} className="h-12 w-full" />
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    {/* Notification Types */}
+                    <div>
+                      <h3 className="text-lg font-medium mb-3">Типы уведомлений</h3>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label className="text-base">Завершение тестов</Label>
+                            <p className="text-sm text-muted-foreground">
+                              Уведомления о завершении тестов и результатах
+                            </p>
+                          </div>
+                          <Switch
+                            checked={notificationSettings?.testCompletedEnabled ?? true}
+                            onCheckedChange={(checked) =>
+                              updateSettingsMutation.mutate({ testCompletedEnabled: checked })
+                            }
+                            data-testid="switch-test-completed"
+                          />
+                        </div>
+                        
+                        <Separator />
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label className="text-base">Напоминания о тестах</Label>
+                            <p className="text-sm text-muted-foreground">
+                              Напоминания о предстоящих или назначенных тестах
+                            </p>
+                          </div>
+                          <Switch
+                            checked={notificationSettings?.testReminderEnabled ?? true}
+                            onCheckedChange={(checked) =>
+                              updateSettingsMutation.mutate({ testReminderEnabled: checked })
+                            }
+                            data-testid="switch-test-reminders"
+                          />
+                        </div>
+                        
+                        <Separator />
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label className="text-base">Достижения</Label>
+                            <p className="text-sm text-muted-foreground">
+                              Уведомления о получении новых достижений и наград
+                            </p>
+                          </div>
+                          <Switch
+                            checked={notificationSettings?.achievementEnabled ?? true}
+                            onCheckedChange={(checked) =>
+                              updateSettingsMutation.mutate({ achievementEnabled: checked })
+                            }
+                            data-testid="switch-achievements"
+                          />
+                        </div>
+                        
+                        <Separator />
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label className="text-base">Системные сообщения</Label>
+                            <p className="text-sm text-muted-foreground">
+                              Важные объявления и обновления системы
+                            </p>
+                          </div>
+                          <Switch
+                            checked={notificationSettings?.systemMessageEnabled ?? true}
+                            onCheckedChange={(checked) =>
+                              updateSettingsMutation.mutate({ systemMessageEnabled: checked })
+                            }
+                            data-testid="switch-system-messages"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Delivery Channels */}
+                    <div>
+                      <h3 className="text-lg font-medium mb-3">Способы доставки</h3>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label className="text-base">В приложении</Label>
+                            <p className="text-sm text-muted-foreground">
+                              Показывать уведомления в интерфейсе приложения
+                            </p>
+                          </div>
+                          <Switch
+                            checked={notificationSettings?.inAppEnabled ?? true}
+                            onCheckedChange={(checked) =>
+                              updateSettingsMutation.mutate({ inAppEnabled: checked })
+                            }
+                            data-testid="switch-in-app"
+                          />
+                        </div>
+                        
+                        <Separator />
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label className="text-base">Push-уведомления</Label>
+                            <p className="text-sm text-muted-foreground">
+                              Уведомления в браузере (требуется разрешение)
+                            </p>
+                          </div>
+                          <Switch
+                            checked={notificationSettings?.pushEnabled ?? false}
+                            onCheckedChange={(checked) =>
+                              updateSettingsMutation.mutate({ pushEnabled: checked })
+                            }
+                            data-testid="switch-push"
+                          />
+                        </div>
+                        
+                        <Separator />
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label className="text-base">Email</Label>
+                            <p className="text-sm text-muted-foreground">
+                              Отправка уведомлений на электронную почту
+                            </p>
+                          </div>
+                          <Switch
+                            checked={notificationSettings?.emailEnabled ?? false}
+                            onCheckedChange={(checked) =>
+                              updateSettingsMutation.mutate({ emailEnabled: checked })
+                            }
+                            data-testid="switch-email"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Reminder Settings */}
+                    <div>
+                      <h3 className="text-lg font-medium mb-3">Настройки напоминаний</h3>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="reminder-interval">Интервал напоминаний (минуты)</Label>
+                            <Input
+                              id="reminder-interval"
+                              type="number"
+                              min="5"
+                              max="1440"
+                              step="5"
+                              value={notificationSettings?.reminderIntervalMinutes ?? 30}
+                              onChange={(e) => {
+                                const value = parseInt(e.target.value);
+                                if (!isNaN(value)) {
+                                  updateSettingsMutation.mutate({ reminderIntervalMinutes: value });
+                                }
+                              }}
+                              data-testid="input-reminder-interval"
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="max-reminders">Максимум напоминаний в день</Label>
+                            <Input
+                              id="max-reminders"
+                              type="number"
+                              min="1"
+                              max="10"
+                              value={notificationSettings?.maxRemindersPerDay ?? 3}
+                              onChange={(e) => {
+                                const value = parseInt(e.target.value);
+                                if (!isNaN(value)) {
+                                  updateSettingsMutation.mutate({ maxRemindersPerDay: value });
+                                }
+                              }}
+                              data-testid="input-max-reminders"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Quiet Hours */}
+                    <div>
+                      <h3 className="text-lg font-medium mb-3">Тихие часы</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Уведомления не будут отправляться в указанное время
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="quiet-start">Начало тихого времени</Label>
+                          <Input
+                            id="quiet-start"
+                            type="time"
+                            value={notificationSettings?.quietHoursStart ?? "22:00"}
+                            onChange={(e) =>
+                              updateSettingsMutation.mutate({ quietHoursStart: e.target.value })
+                            }
+                            data-testid="input-quiet-start"
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="quiet-end">Конец тихого времени</Label>
+                          <Input
+                            id="quiet-end"
+                            type="time"
+                            value={notificationSettings?.quietHoursEnd ?? "08:00"}
+                            onChange={(e) =>
+                              updateSettingsMutation.mutate({ quietHoursEnd: e.target.value })
+                            }
+                            data-testid="input-quiet-end"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Save Status */}
+                    {updateSettingsMutation.isPending && (
+                      <div className="flex items-center justify-center p-4 bg-accent/10 rounded-md">
+                        <i className="fas fa-spinner fa-spin mr-2"></i>
+                        <span className="text-sm">Сохранение настроек...</span>
+                      </div>
+                    )}
+                  </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

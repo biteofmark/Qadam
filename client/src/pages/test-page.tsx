@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -12,6 +12,10 @@ import TestTimer from "@/components/test-timer";
 import Calculator from "@/components/calculator";
 import PeriodicTable from "@/components/periodic-table";
 import MobileTestNavigation from "@/components/mobile-test-navigation";
+import CameraPreview from "@/components/proctoring/CameraPreview";
+import RecordingStatus from "@/components/proctoring/RecordingStatus";
+import PermissionDialog from "@/components/proctoring/PermissionDialog";
+import { VideoRecordingService } from "@/lib/video-recording-service";
 import { queryClient } from "@/lib/queryClient";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +23,7 @@ import { useOfflineSync } from "@/hooks/use-offline-sync";
 import NetworkStatus from "@/components/network-status";
 import type { Variant, Block } from "@shared/schema";
 import type { ActiveTest } from "@/lib/offline-db";
+import type { VideoSegment, RecordingMetadata } from "@/lib/video-recording-service";
 
 interface TestQuestion {
   id: string;
@@ -58,13 +63,164 @@ export default function TestPage() {
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [testStartTime] = useState(Date.now());
 
+  // Video proctoring states
+  const [showPermissionDialog, setShowPermissionDialog] = useState(false);
+  const [permissionStatus, setPermissionStatus] = useState<"pending" | "granted" | "denied" | "error">("pending");
+  const [isRecording, setIsRecording] = useState(false);
+  const [cameraPreviewMinimized, setCameraPreviewMinimized] = useState(false);
+  const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
+  const [uploadProgress, setUploadProgress] = useState({
+    uploaded: 0,
+    total: 0,
+    pending: 0,
+    failed: 0,
+  });
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const videoRecordingServiceRef = useRef<VideoRecordingService | null>(null);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const { data: testData, isLoading } = useQuery<TestData>({
     queryKey: ["/api/variants", variantId, "test"],
     enabled: !!variantId,
   });
 
+  // Initialize video proctoring if required
+  useEffect(() => {
+    if (testData?.variant?.block?.requiresProctoring && user?.id && variantId) {
+      setShowPermissionDialog(true);
+      
+      // Initialize video recording service
+      const testSessionId = `${variantId}-${user.id}-${testStartTime}`;
+      videoRecordingServiceRef.current = new VideoRecordingService({
+        userId: user.id,
+        testSessionId,
+        variantId,
+        chunkDurationMs: 2 * 60 * 1000, // 2 minutes chunks
+        videoBitsPerSecond: 1000000, // 1Mbps
+        audioBitsPerSecond: 128000   // 128kbps
+      });
+
+      // Set up callbacks
+      videoRecordingServiceRef.current.setCallbacks({
+        onSegmentReady: (segment: VideoSegment) => {
+          setUploadProgress(prev => ({
+            ...prev,
+            total: prev.total + 1,
+            pending: prev.pending + 1
+          }));
+        },
+        onUploadProgress: (segment: VideoSegment, uploaded: boolean) => {
+          setUploadProgress(prev => ({
+            ...prev,
+            uploaded: uploaded ? prev.uploaded + 1 : prev.uploaded,
+            pending: uploaded ? prev.pending - 1 : prev.pending,
+            failed: uploaded ? prev.failed : prev.failed + 1
+          }));
+        },
+        onRecordingStatusChange: (recording: boolean) => {
+          setIsRecording(recording);
+        },
+        onError: (error: string) => {
+          toast({
+            title: "Ошибка видео-прокторинга",
+            description: error,
+            variant: "destructive",
+          });
+        }
+      });
+    }
+  }, [testData, user, variantId, testStartTime, toast]);
+
+  // Update recording duration timer
+  useEffect(() => {
+    if (isRecording) {
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1000);
+      }, 1000);
+    } else {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+    }
+
+    return () => {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+    };
+  }, [isRecording]);
+
+  // Video proctoring handlers
+  const handlePermissionGranted = async () => {
+    if (!videoRecordingServiceRef.current) return;
+
+    try {
+      const hasPermission = await videoRecordingServiceRef.current.requestCameraPermission();
+      if (hasPermission) {
+        setPermissionStatus("granted");
+        setVideoStream(videoRecordingServiceRef.current.getVideoStream());
+        setShowPermissionDialog(false);
+
+        // Start recording automatically
+        const started = await videoRecordingServiceRef.current.startRecording();
+        if (!started) {
+          toast({
+            title: "Ошибка",
+            description: "Не удалось начать запись видео",
+            variant: "destructive",
+          });
+        }
+      } else {
+        setPermissionStatus("denied");
+      }
+    } catch (error) {
+      console.error('Permission grant failed:', error);
+      setPermissionStatus("error");
+    }
+  };
+
+  const handlePermissionDenied = () => {
+    setPermissionStatus("denied");
+    toast({
+      title: "Видео-прокторинг обязателен",
+      description: "Для прохождения данного теста необходим доступ к камере",
+      variant: "destructive",
+    });
+  };
+
+  const handleRetryUploads = () => {
+    // This would retry failed video segment uploads
+    toast({
+      title: "Повторная загрузка",
+      description: "Попытка повторной загрузки неудачных сегментов...",
+    });
+  };
+
+  // Cleanup video recording on unmount
+  useEffect(() => {
+    return () => {
+      if (videoRecordingServiceRef.current) {
+        videoRecordingServiceRef.current.cleanup();
+      }
+    };
+  }, []);
+
   const submitTestMutation = useMutation({
     mutationFn: async (answers: Record<string, string>) => {
+      // Stop video recording if it's active
+      if (videoRecordingServiceRef.current && isRecording) {
+        try {
+          await videoRecordingServiceRef.current.stopRecording();
+          toast({
+            title: "Видео запись завершена",
+            description: "Завершаем обработку видео записи...",
+          });
+        } catch (error) {
+          console.error('Failed to stop video recording:', error);
+        }
+      }
+
       try {
         // Try online submission first
         if (syncStatus.isOnline) {
@@ -515,6 +671,38 @@ export default function TestPage() {
             isOpen={showPeriodicTable}
             onClose={() => setShowPeriodicTable(false)}
           />
+        )}
+
+        {/* Video Proctoring Components */}
+        {testData?.variant?.block?.requiresProctoring && (
+          <>
+            <PermissionDialog
+              isOpen={showPermissionDialog}
+              onClose={() => setShowPermissionDialog(false)}
+              onPermissionGranted={handlePermissionGranted}
+              onPermissionDenied={handlePermissionDenied}
+              permissionStatus={permissionStatus}
+            />
+
+            {permissionStatus === "granted" && videoStream && (
+              <CameraPreview
+                stream={videoStream}
+                isRecording={isRecording}
+                isMinimized={cameraPreviewMinimized}
+                onToggleMinimize={() => setCameraPreviewMinimized(!cameraPreviewMinimized)}
+              />
+            )}
+
+            {isRecording && (
+              <RecordingStatus
+                isRecording={isRecording}
+                recordingDuration={recordingDuration}
+                uploadProgress={uploadProgress}
+                connectionStatus={syncStatus.isOnline ? "online" : "offline"}
+                onRetryUploads={handleRetryUploads}
+              />
+            )}
+          </>
         )}
       </main>
     </div>

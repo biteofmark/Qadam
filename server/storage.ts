@@ -3,11 +3,17 @@ import { type User, type InsertUser, type Block, type InsertBlock, type Variant,
          type TestResult, type InsertTestResult, type SubjectProgress, type UserRanking,
          type Notification, type InsertNotification, type NotificationSettings, type InsertNotificationSettings,
          type Reminder, type InsertReminder, type NotificationType,
+         type VideoRecording, type InsertVideoRecording,
          type AnalyticsOverview, type SubjectAggregate, type HistoryPoint, type CorrectnessBreakdown, type ComparisonStats,
-         type ExportJob, type InsertExportJob, type ExportType } from "@shared/schema";
+         type ExportJob, type InsertExportJob, type ExportType,
+         videoRecordings, users, blocks, variants, subjects, questions, answers, testResults,
+         subjectProgress as subjectProgressTable, notifications, notificationSettings,
+         reminders, exportJobs } from "@shared/schema";
 import { randomUUID } from "crypto";
 import session from "express-session";
 import createMemoryStore from "memorystore";
+import { db } from "./db";
+import { eq, and, desc, sql, count, asc } from "drizzle-orm";
 
 const MemoryStore = createMemoryStore(session);
 
@@ -108,51 +114,128 @@ export interface IStorage {
   checkExportRateLimit(userId: string): Promise<{ allowed: boolean; reason?: string }>;
   incrementExportCount(userId: string): Promise<void>;
   
+  // Video Recordings
+  createVideoRecording(recording: InsertVideoRecording): Promise<VideoRecording>;
+  getVideoRecording(id: string): Promise<VideoRecording | undefined>;
+  getVideoRecordingsByUser(userId: string): Promise<VideoRecording[]>;
+  getVideoRecordingsByTest(testResultId: string): Promise<VideoRecording[]>;
+  updateVideoRecording(id: string, update: Partial<VideoRecording>): Promise<VideoRecording | undefined>;
+  addVideoSegment(recordingId: string, segmentPath: string): Promise<void>;
+  markVideoRecordingComplete(id: string): Promise<void>;
+  deleteVideoRecording(id: string, userId: string): Promise<void>;
+  
   sessionStore: session.Store;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-  private blocks: Map<string, Block>;
-  private variants: Map<string, Variant>;
-  private subjects: Map<string, Subject>;
-  private questions: Map<string, Question>;
-  private answers: Map<string, Answer>;
-  private testResults: Map<string, TestResult>;
-  private subjectProgress: Map<string, SubjectProgress>;
-  private userRankings: Map<string, UserRanking>;
-  private notifications: Map<string, Notification>;
-  private notificationSettings: Map<string, NotificationSettings>;
-  private reminders: Map<string, Reminder>;
-  private exportJobs: Map<string, ExportJob>;
+// DatabaseStorage implementation using PostgreSQL - javascript_database integration
+// CRITICAL #1: Durability fix - VideoRecording moved from MemStorage to PostgreSQL
+export class DatabaseStorage implements IStorage {
   private fileCache: Map<string, { buffer: Buffer; expiresAt: number }>;
   private exportRateLimit: Map<string, { count: number; lastReset: number; concurrent: number }>;
   
   sessionStore: session.Store;
 
   constructor() {
-    this.users = new Map();
-    this.blocks = new Map();
-    this.variants = new Map();
-    this.subjects = new Map();
-    this.questions = new Map();
-    this.answers = new Map();
-    this.testResults = new Map();
-    this.subjectProgress = new Map();
-    this.userRankings = new Map();
-    this.notifications = new Map();
-    this.notificationSettings = new Map();
-    this.reminders = new Map();
-    this.exportJobs = new Map();
+    // Keep some in-memory caches for non-persistent data
     this.fileCache = new Map();
     this.exportRateLimit = new Map();
     
+    const MemoryStore = createMemoryStore(session);
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000,
     });
+  }
+
+  // Video Recordings implementation - CRITICAL #1: Durability fix
+  async createVideoRecording(recording: InsertVideoRecording): Promise<VideoRecording> {
+    const [videoRecording] = await db
+      .insert(videoRecordings)
+      .values({
+        ...recording,
+        startedAt: new Date(),
+        completedAt: null,
+      })
+      .returning();
+    return videoRecording;
+  }
+
+  async getVideoRecording(id: string): Promise<VideoRecording | undefined> {
+    const [recording] = await db.select().from(videoRecordings).where(eq(videoRecordings.id, id));
+    return recording || undefined;
+  }
+
+  async getVideoRecordingsByUser(userId: string): Promise<VideoRecording[]> {
+    return await db
+      .select()
+      .from(videoRecordings)
+      .where(eq(videoRecordings.userId, userId))
+      .orderBy(desc(videoRecordings.startedAt));
+  }
+
+  async getVideoRecordingsByTest(testResultId: string): Promise<VideoRecording[]> {
+    return await db
+      .select()
+      .from(videoRecordings)
+      .where(eq(videoRecordings.testResultId, testResultId))
+      .orderBy(desc(videoRecordings.startedAt));
+  }
+
+  async updateVideoRecording(id: string, update: Partial<VideoRecording>): Promise<VideoRecording | undefined> {
+    const [updated] = await db
+      .update(videoRecordings)
+      .set(update)
+      .where(eq(videoRecordings.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async addVideoSegment(recordingId: string, segmentPath: string): Promise<void> {
+    const [recording] = await db.select().from(videoRecordings).where(eq(videoRecordings.id, recordingId));
+    if (!recording) return;
     
-    // Initialize with sample data
-    this.initializeSampleData();
+    const updatedPaths = [...recording.segmentsPaths, segmentPath];
+    await db
+      .update(videoRecordings)
+      .set({ segmentsPaths: updatedPaths })
+      .where(eq(videoRecordings.id, recordingId));
+  }
+
+  async markVideoRecordingComplete(id: string): Promise<void> {
+    await db
+      .update(videoRecordings)
+      .set({ 
+        uploadStatus: "completed",
+        completedAt: new Date()
+      })
+      .where(eq(videoRecordings.id, id));
+  }
+
+  async deleteVideoRecording(id: string, userId: string): Promise<void> {
+    await db
+      .delete(videoRecordings)
+      .where(and(
+        eq(videoRecordings.id, id),
+        eq(videoRecordings.userId, userId)
+      ));
+  }
+
+  // Users implementation
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(insertUser)
+      .returning();
+    return user;
   }
 
   private async initializeSampleData() {
@@ -1044,6 +1127,8 @@ export class MemStorage implements IStorage {
       this.exportRateLimit.set(userId, userLimit);
     }
   }
+
+  // REMOVED: Old MemStorage VideoRecording methods - now using DatabaseStorage
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

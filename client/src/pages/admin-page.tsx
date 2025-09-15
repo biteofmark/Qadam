@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import VideoRecordingsViewer from "@/components/admin/VideoRecordingsViewer";
 import type { Block, Variant, Subject, Question, Answer } from "@shared/schema";
 
 export default function AdminPage() {
@@ -201,12 +202,13 @@ export default function AdminPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="blocks" data-testid="tab-blocks">Блоки</TabsTrigger>
             <TabsTrigger value="variants" data-testid="tab-variants">Варианты</TabsTrigger>
             <TabsTrigger value="subjects" data-testid="tab-subjects">Предметы</TabsTrigger>
             <TabsTrigger value="questions" data-testid="tab-questions">Вопросы</TabsTrigger>
             <TabsTrigger value="answers" data-testid="tab-answers">Ответы</TabsTrigger>
+            <TabsTrigger value="video-recordings" data-testid="tab-video-recordings">Видео записи</TabsTrigger>
           </TabsList>
 
           <TabsContent value="blocks" className="space-y-6">
@@ -647,6 +649,10 @@ export default function AdminPage() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="video-recordings" className="space-y-6">
+            <VideoRecordingsViewer />
           </TabsContent>
         </Tabs>
       </main>

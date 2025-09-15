@@ -5,6 +5,8 @@ import { storage } from "./storage";
 import { PDFService } from "./services/pdf.service";
 import { ExcelService } from "./services/excel.service";
 import { randomUUID } from "crypto";
+// CRITICAL #5: Operational Hardening - Import startup validation
+import { operationalHardening } from "./operational-hardening";
 
 const app = express();
 app.use(express.json());
@@ -267,7 +269,33 @@ async function cleanupExpiredFiles() {
 }
 
 (async () => {
-  const server = await registerRoutes(app);
+  try {
+    // CRITICAL #5: Operational Hardening - Startup validation
+    console.log('[STARTUP] Initializing video proctoring system...');
+    
+    const validation = await operationalHardening.validateStartupRequirements();
+    if (!validation.success) {
+      console.error('[STARTUP] ❌ Startup validation failed. Cannot continue.');
+      console.error('[STARTUP] Errors found:');
+      validation.errors.forEach((error, index) => {
+        console.error(`[STARTUP]   ${index + 1}. ${error}`);
+      });
+      
+      operationalHardening.logStructured('STARTUP_VALIDATION_FAILED', {
+        errors: validation.errors,
+        timestamp: new Date().toISOString()
+      }, 'ERROR');
+      
+      process.exit(1);
+    }
+    
+    console.log('[STARTUP] ✅ All startup validation checks passed');
+    operationalHardening.logStructured('STARTUP_VALIDATION_SUCCESS', {
+      timestamp: new Date().toISOString(),
+      checksPerformed: ['database', 'environment_variables', 'object_storage', 'rate_limiting']
+    });
+
+    const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -298,6 +326,14 @@ async function cleanupExpiredFiles() {
   }, () => {
     log(`serving on port ${port}`);
     
+    // CRITICAL #5: Operational Hardening - Log successful startup
+    operationalHardening.logStructured('SYSTEM_STARTUP_COMPLETE', {
+      port,
+      environment: process.env.NODE_ENV || 'development',
+      nodeVersion: process.version,
+      platform: process.platform
+    });
+    
     // Start the reminder scheduler (runs every 60 seconds)
     setInterval(processReminders, 60 * 1000);
     log("Reminder scheduler started");
@@ -309,5 +345,15 @@ async function cleanupExpiredFiles() {
     // Start the cleanup job (runs every 15 minutes)
     setInterval(cleanupExpiredFiles, 15 * 60 * 1000);
     log("File cleanup scheduler started");
+    
+    // CRITICAL #5: Operational Hardening - Perform initial health check
+    setTimeout(async () => {
+      try {
+        const health = await operationalHardening.performHealthCheck();
+        console.log(`[STARTUP] Initial health check completed: ${health.status}`);
+      } catch (error) {
+        console.error('[STARTUP] Initial health check failed:', error);
+      }
+    }, 5000); // Wait 5 seconds after startup
   });
 })();

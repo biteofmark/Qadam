@@ -65,6 +65,7 @@ export const blocks = pgTable("blocks", {
   name: text("name").notNull().unique(),
   hasCalculator: boolean("has_calculator").default(false),
   hasPeriodicTable: boolean("has_periodic_table").default(false),
+  requiresProctoring: boolean("requires_proctoring").default(false),
 });
 
 export const variants = pgTable("variants", {
@@ -120,6 +121,20 @@ export const userRankings = pgTable("user_rankings", {
   lastUpdated: timestamp("last_updated").defaultNow(),
 });
 
+export const videoRecordings = pgTable("video_recordings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  testResultId: varchar("test_result_id").references(() => testResults.id, { onDelete: "cascade" }),
+  variantId: varchar("variant_id").notNull().references(() => variants.id, { onDelete: "cascade" }),
+  testSessionId: text("test_session_id").notNull(),
+  segmentsPaths: text("segments_paths").array().default([]),
+  totalDurationMs: integer("total_duration_ms").default(0),
+  uploadStatus: text("upload_status").default("uploading"), // "uploading", "completed", "failed"
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+  metadata: jsonb("metadata"), // For additional recording info
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -165,6 +180,12 @@ export const insertReminderSchema = createInsertSchema(reminders).omit({
   id: true,
   createdAt: true,
   lastSentAt: true,
+});
+
+export const insertVideoRecordingSchema = createInsertSchema(videoRecordings).omit({
+  id: true,
+  startedAt: true,
+  completedAt: true,
 });
 
 // Analytics Zod DTO schemas
@@ -235,6 +256,9 @@ export type InsertTestResult = z.infer<typeof insertTestResultSchema>;
 
 export type SubjectProgress = typeof subjectProgress.$inferSelect;
 export type UserRanking = typeof userRankings.$inferSelect;
+
+export type VideoRecording = typeof videoRecordings.$inferSelect;
+export type InsertVideoRecording = z.infer<typeof insertVideoRecordingSchema>;
 
 // Notification types
 export type Notification = typeof notifications.$inferSelect;

@@ -125,7 +125,7 @@ export default function TestPage() {
     );
   }
 
-  if (!testData) {
+  if (!testData || !testData.variant || !testData.variant.block || !testData.testData) {
     return (
       <div className="min-h-screen bg-background">
         <Header />

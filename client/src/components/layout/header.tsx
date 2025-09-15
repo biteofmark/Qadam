@@ -12,6 +12,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import NotificationBell from "@/components/notification-bell";
+import NetworkStatus from "@/components/network-status";
 
 export default function Header() {
   const { user, logoutMutation } = useAuth();
@@ -136,6 +137,9 @@ export default function Header() {
             >
               <i className={`fas ${theme === "light" ? "fa-moon" : "fa-sun"}`}></i>
             </Button>
+            
+            {/* Network Status */}
+            <NetworkStatus className="hidden md:flex" />
             
             {/* Notification Bell */}
             {user && <NotificationBell />}

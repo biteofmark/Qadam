@@ -1,4 +1,5 @@
 import { Switch, Route } from "wouter";
+import { Suspense, lazy } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -13,10 +14,28 @@ import TestPage from "@/pages/test-page";
 import ResultsPage from "@/pages/results-page";
 import ProfilePage from "@/pages/profile-page";
 import NotificationsPage from "@/pages/notifications-page";
-import AdminPage from "@/pages/admin-page";
 import RankingPage from "@/pages/ranking-page";
-import AnalyticsPage from "@/pages/analytics-page";
 import { ProtectedRoute } from "./lib/protected-route";
+
+// Lazy load heavy pages for better performance
+const AdminPage = lazy(() => import("@/pages/admin-page"));
+const AnalyticsPage = lazy(() => import("@/pages/analytics-page"));
+
+// Loading fallback component
+const PageSkeleton = () => (
+  <div className="min-h-screen bg-background">
+    <div className="container mx-auto px-4 lg:px-6 py-8">
+      <div className="space-y-6">
+        <div className="h-8 bg-muted rounded animate-pulse"></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-32 bg-muted rounded animate-pulse"></div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+);
 
 function Router() {
   return (
@@ -27,8 +46,16 @@ function Router() {
       <ProtectedRoute path="/results" component={() => <ResultsPage />} />
       <ProtectedRoute path="/profile" component={() => <ProfilePage />} />
       <ProtectedRoute path="/notifications" component={() => <NotificationsPage />} />
-      <ProtectedRoute path="/analytics" component={() => <AnalyticsPage />} />
-      <ProtectedRoute path="/admin" component={() => <AdminPage />} />
+      <ProtectedRoute path="/analytics" component={() => (
+        <Suspense fallback={<PageSkeleton />}>
+          <AnalyticsPage />
+        </Suspense>
+      )} />
+      <ProtectedRoute path="/admin" component={() => (
+        <Suspense fallback={<PageSkeleton />}>
+          <AdminPage />
+        </Suspense>
+      )} />
       <ProtectedRoute path="/ranking" component={() => <RankingPage />} />
       <Route path="/auth" component={AuthPage} />
       <Route component={NotFound} />

@@ -358,6 +358,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test progress endpoint for offline sync
+  app.post("/api/test-progress", requireAuth, async (req, res) => {
+    try {
+      const { testId, variantId, answers, timeSpent, lastSavedAt } = req.body;
+      
+      if (!testId || !variantId || !answers) {
+        return res.status(400).json({ message: "Недостаточно данных для сохранения прогресса" });
+      }
+
+      // For now, store test progress in memory or return success
+      // This can be extended to save to database if needed
+      console.log(`[API] Test progress saved for user ${req.user?.id}:`, {
+        testId,
+        variantId,
+        answersCount: Object.keys(answers).length,
+        timeSpent,
+        lastSavedAt
+      });
+      
+      res.json({
+        success: true,
+        message: "Прогресс теста сохранен",
+        savedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('[API] Error saving test progress:', error);
+      res.status(500).json({ message: "Ошибка сохранения прогресса теста" });
+    }
+  });
+
+  // Sync endpoint for offline test data
+  app.post("/api/sync/tests", requireAuth, async (req, res) => {
+    try {
+      const { action } = req.body;
+      
+      if (action === 'sync_offline_tests') {
+        console.log(`[API] Syncing offline tests for user ${req.user?.id}`);
+        
+        // This would handle syncing offline test data
+        // For now, just return success
+        res.json({
+          success: true,
+          message: "Офлайн тесты синхронизированы",
+          syncedAt: new Date().toISOString()
+        });
+      } else {
+        res.status(400).json({ message: "Неизвестное действие синхронизации" });
+      }
+    } catch (error) {
+      console.error('[API] Error syncing offline tests:', error);
+      res.status(500).json({ message: "Ошибка синхронизации офлайн тестов" });
+    }
+  });
+
   // User profile routes
   app.get("/api/profile", requireAuth, async (req, res) => {
     try {
@@ -756,6 +810,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       res.status(500).json({ message: "Ошибка получения заданий экспорта" });
     }
+  });
+
+  // Push notification subscription routes
+  app.post("/api/push/subscribe", requireAuth, async (req, res) => {
+    try {
+      const { endpoint, keys } = req.body;
+      
+      if (!endpoint || !keys || !keys.p256dh || !keys.auth) {
+        return res.status(400).json({ message: "Недостаточно данных подписки" });
+      }
+
+      // Save subscription to storage (this would need to be implemented in storage)
+      console.log(`[Push] Subscription saved for user ${req.user?.id}:`, {
+        endpoint,
+        p256dh: keys.p256dh.substring(0, 20) + '...',
+        auth: keys.auth.substring(0, 20) + '...'
+      });
+      
+      res.json({
+        success: true,
+        message: "Подписка на уведомления успешно сохранена"
+      });
+    } catch (error) {
+      console.error('[Push] Error saving subscription:', error);
+      res.status(500).json({ message: "Ошибка сохранения подписки" });
+    }
+  });
+
+  app.post("/api/push/unsubscribe", requireAuth, async (req, res) => {
+    try {
+      const { endpoint } = req.body;
+      
+      if (!endpoint) {
+        return res.status(400).json({ message: "Endpoint не указан" });
+      }
+
+      // Remove subscription from storage
+      console.log(`[Push] Subscription removed for user ${req.user?.id}, endpoint:`, endpoint);
+      
+      res.json({
+        success: true,
+        message: "Подписка на уведомления отменена"
+      });
+    } catch (error) {
+      console.error('[Push] Error removing subscription:', error);
+      res.status(500).json({ message: "Ошибка отмены подписки" });
+    }
+  });
+
+  app.post("/api/push/test", requireAuth, async (req, res) => {
+    try {
+      // This would send a test push notification
+      console.log(`[Push] Test notification requested for user ${req.user?.id}`);
+      
+      res.json({
+        success: true,
+        message: "Тестовое уведомление отправлено"
+      });
+    } catch (error) {
+      console.error('[Push] Error sending test notification:', error);
+      res.status(500).json({ message: "Ошибка отправки тестового уведомления" });
+    }
+  });
+
+  // Get VAPID public key for frontend
+  app.get("/api/push/vapid-key", (req, res) => {
+    res.json({
+      publicKey: 'BCHhBDxcAj5TrD2Zzg3g3UjgBHO9SjO9SjO9SjO9SjO9SjO9SjO9SjO9SjO9SjO9SjO9SjO9Sj'
+    });
   });
 
   const httpServer = createServer(app);

@@ -11,10 +11,14 @@ import { Progress } from "@/components/ui/progress";
 import TestTimer from "@/components/test-timer";
 import Calculator from "@/components/calculator";
 import PeriodicTable from "@/components/periodic-table";
+import MobileTestNavigation from "@/components/mobile-test-navigation";
 import { queryClient } from "@/lib/queryClient";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useOfflineSync } from "@/hooks/use-offline-sync";
+import NetworkStatus from "@/components/network-status";
 import type { Variant, Block } from "@shared/schema";
+import type { ActiveTest } from "@/lib/offline-db";
 
 interface TestQuestion {
   id: string;
@@ -43,6 +47,7 @@ export default function TestPage() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { syncStatus, saveDraftTest, saveCompletedTest, getOfflineTest } = useOfflineSync();
   const variantId = params?.variantId;
 
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -50,6 +55,8 @@ export default function TestPage() {
   const [showCalculator, setShowCalculator] = useState(false);
   const [showPeriodicTable, setShowPeriodicTable] = useState(false);
   const [timeLeft, setTimeLeft] = useState(240 * 60); // 240 minutes in seconds
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [testStartTime] = useState(Date.now());
 
   const { data: testData, isLoading } = useQuery<TestData>({
     queryKey: ["/api/variants", variantId, "test"],
@@ -58,15 +65,56 @@ export default function TestPage() {
 
   const submitTestMutation = useMutation({
     mutationFn: async (answers: Record<string, string>) => {
-      const res = await apiRequest("POST", "/api/test-results", {
-        variantId,
-        answers,
-        timeSpent: (240 * 60) - timeLeft,
-      });
-      return await res.json();
+      try {
+        // Try online submission first
+        if (syncStatus.isOnline) {
+          const res = await apiRequest("POST", "/api/test-results", {
+            variantId,
+            answers,
+            timeSpent: (240 * 60) - timeLeft,
+          });
+          return await res.json();
+        } else {
+          throw new Error('Offline mode');
+        }
+      } catch (error) {
+        // Save for offline sync if online submission fails
+        const offlineResult = {
+          id: `result-${variantId}-${user?.id}-${Date.now()}`,
+          testId: `${variantId}-${user?.id}`,
+          variantId: variantId!,
+          answers,
+          timeSpent: (240 * 60) - timeLeft,
+          completedAt: Date.now(),
+          syncStatus: 'pending' as const,
+          syncAttempts: 0
+        };
+        
+        await saveCompletedTest(offlineResult);
+        
+        return {
+          offline: true,
+          message: 'Тест сохранен для синхронизации'
+        };
+      }
     },
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      if (result.offline) {
+        toast({
+          title: "Тест завершен",
+          description: "Результаты будут синхронизированы при восстановлении связи",
+        });
+      } else {
+        toast({
+          title: "Тест завершен",
+          description: "Результаты успешно сохранены",
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      }
+      
+      // Clean up offline data
+      localStorage.removeItem(`test_${variantId}_answers`);
+      
       setLocation("/results", { state: { result, testData, userAnswers } });
     },
     onError: () => {
@@ -78,25 +126,77 @@ export default function TestPage() {
     },
   });
 
-  // Auto-save answers every 30 seconds
+  // Auto-save answers every 30 seconds (offline-first)
   useEffect(() => {
-    const interval = setInterval(() => {
-      // In a real app, you'd save to localStorage or send to server
-      localStorage.setItem(`test_${variantId}_answers`, JSON.stringify(userAnswers));
+    const interval = setInterval(async () => {
+      if (variantId && testData && Object.keys(userAnswers).length > 0) {
+        try {
+          const activeTest: ActiveTest = {
+            id: `${variantId}-${user?.id}`,
+            variantId,
+            variant: testData.variant,
+            testData: testData.testData,
+            userAnswers,
+            startedAt: testStartTime,
+            lastSavedAt: Date.now(),
+            timeSpent: (240 * 60) - timeLeft,
+            isCompleted: false,
+            syncStatus: 'pending',
+            syncAttempts: 0
+          };
+          
+          await saveDraftTest(activeTest);
+          
+          // Fallback to localStorage
+          localStorage.setItem(`test_${variantId}_answers`, JSON.stringify(userAnswers));
+        } catch (error) {
+          console.error('Failed to save test draft:', error);
+          // Fallback to localStorage only
+          localStorage.setItem(`test_${variantId}_answers`, JSON.stringify(userAnswers));
+        }
+      }
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [variantId, userAnswers]);
+  }, [variantId, userAnswers, testData, timeLeft, user?.id, testStartTime, saveDraftTest]);
 
-  // Load saved answers on component mount
+  // Load saved answers on component mount (offline-first)
   useEffect(() => {
-    if (variantId) {
-      const savedAnswers = localStorage.getItem(`test_${variantId}_answers`);
-      if (savedAnswers) {
-        setUserAnswers(JSON.parse(savedAnswers));
-      }
+    if (variantId && user?.id) {
+      const loadSavedTest = async () => {
+        try {
+          // Try offline database first
+          const offlineTest = await getOfflineTest(`${variantId}-${user.id}`);
+          if (offlineTest) {
+            setUserAnswers(offlineTest.userAnswers);
+            setTimeLeft(Math.max(0, 240 * 60 - offlineTest.timeSpent));
+            setIsOfflineMode(true);
+            
+            toast({
+              title: "Тест восстановлен",
+              description: "Продолжаем с сохраненного места",
+            });
+            return;
+          }
+          
+          // Fallback to localStorage
+          const savedAnswers = localStorage.getItem(`test_${variantId}_answers`);
+          if (savedAnswers) {
+            setUserAnswers(JSON.parse(savedAnswers));
+          }
+        } catch (error) {
+          console.error('Failed to load saved test:', error);
+          // Fallback to localStorage
+          const savedAnswers = localStorage.getItem(`test_${variantId}_answers`);
+          if (savedAnswers) {
+            setUserAnswers(JSON.parse(savedAnswers));
+          }
+        }
+      };
+      
+      loadSavedTest();
     }
-  }, [variantId]);
+  }, [variantId, user?.id, getOfflineTest, toast]);
 
   if (!match || !variantId) {
     setLocation("/");
@@ -174,8 +274,41 @@ export default function TestPage() {
     submitTestMutation.mutate(userAnswers);
   };
 
-  return (
-    <div className="min-h-screen bg-background">
+  // Mobile view with swipe navigation
+  const MobileView = () => (
+    <div className="md:hidden min-h-screen bg-background">
+      <Header />
+      <MobileTestNavigation
+        questions={allQuestions}
+        currentIndex={currentQuestionIndex}
+        userAnswers={userAnswers}
+        onQuestionChange={setCurrentQuestionIndex}
+        onAnswerSelect={handleAnswerSelect}
+        onSubmit={handleSubmitTest}
+        isSubmitting={submitTestMutation.isPending}
+        timeLeft={timeLeft}
+      />
+      
+      {/* Mobile Tools */}
+      {showCalculator && (
+        <Calculator 
+          isOpen={showCalculator}
+          onClose={() => setShowCalculator(false)}
+        />
+      )}
+      
+      {showPeriodicTable && (
+        <PeriodicTable
+          isOpen={showPeriodicTable}
+          onClose={() => setShowPeriodicTable(false)}
+        />
+      )}
+    </div>
+  );
+
+  // Desktop view
+  const DesktopView = () => (
+    <div className="hidden md:block min-h-screen bg-background">
       <Header />
       <main className="container mx-auto px-4 lg:px-6 py-8">
         {/* Test Header */}
@@ -189,12 +322,20 @@ export default function TestPage() {
                 Вопрос {currentQuestionIndex + 1} из {allQuestions.length} • 
                 Предмет: {currentQuestion?.subjectName}
               </p>
+              {isOfflineMode && (
+                <div className="flex items-center mt-2">
+                  <NetworkStatus showDetails={true} className="text-sm" />
+                </div>
+              )}
             </div>
-            <TestTimer 
-              initialTime={240 * 60}
-              onTimeUp={handleTimeUp}
-              onTick={setTimeLeft}
-            />
+            <div className="flex items-center space-x-4">
+              <NetworkStatus className="md:hidden" />
+              <TestTimer 
+                initialTime={timeLeft}
+                onTimeUp={handleTimeUp}
+                onTick={setTimeLeft}
+              />
+            </div>
           </div>
           
           <Progress value={progress} className="mb-4" />
@@ -377,5 +518,12 @@ export default function TestPage() {
         )}
       </main>
     </div>
+  );
+
+  return (
+    <>
+      <MobileView />
+      <DesktopView />
+    </>
   );
 }

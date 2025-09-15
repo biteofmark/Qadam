@@ -202,12 +202,11 @@ export default function AdminPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="blocks" data-testid="tab-blocks">Блоки</TabsTrigger>
             <TabsTrigger value="variants" data-testid="tab-variants">Варианты</TabsTrigger>
             <TabsTrigger value="subjects" data-testid="tab-subjects">Предметы</TabsTrigger>
-            <TabsTrigger value="questions" data-testid="tab-questions">Вопросы</TabsTrigger>
-            <TabsTrigger value="answers" data-testid="tab-answers">Ответы</TabsTrigger>
+            <TabsTrigger value="questions" data-testid="tab-questions">Вопросы и ответы</TabsTrigger>
             <TabsTrigger value="video-recordings" data-testid="tab-video-recordings">Видео записи</TabsTrigger>
           </TabsList>
 
@@ -416,7 +415,7 @@ export default function AdminPage() {
           <TabsContent value="questions" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Управление вопросами</CardTitle>
+                <CardTitle>Управление вопросами и ответами</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -429,6 +428,7 @@ export default function AdminPage() {
                         setSelectedBlock(e.target.value);
                         setSelectedVariant("");
                         setSelectedSubject("");
+                        setSelectedQuestion("");
                       }}
                       data-testid="select-block-for-questions"
                     >
@@ -447,6 +447,7 @@ export default function AdminPage() {
                       onChange={(e) => {
                         setSelectedVariant(e.target.value);
                         setSelectedSubject("");
+                        setSelectedQuestion("");
                       }}
                       disabled={!selectedBlock}
                       data-testid="select-variant-for-questions"
@@ -463,7 +464,10 @@ export default function AdminPage() {
                     <select 
                       className="w-full p-2 border border-border rounded-md bg-background"
                       value={selectedSubject}
-                      onChange={(e) => setSelectedSubject(e.target.value)}
+                      onChange={(e) => {
+                        setSelectedSubject(e.target.value);
+                        setSelectedQuestion("");
+                      }}
                       disabled={!selectedVariant}
                       data-testid="select-subject"
                     >
@@ -495,161 +499,92 @@ export default function AdminPage() {
                 )}
 
                 {questions && questions.length > 0 && (
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     {questions.map((question) => (
-                      <div key={question.id} className="p-4 border border-border rounded-lg">
-                        <div className="flex items-start space-x-4">
-                          <div className="h-10 w-10 rounded-lg bg-yellow-500/10 flex items-center justify-center flex-shrink-0">
-                            <i className="fas fa-question text-yellow-500"></i>
+                      <Card key={question.id} className="border-2 border-muted">
+                        <CardHeader className="pb-4">
+                          <div className="flex items-start space-x-4">
+                            <div className="h-10 w-10 rounded-lg bg-yellow-500/10 flex items-center justify-center flex-shrink-0">
+                              <i className="fas fa-question text-yellow-500"></i>
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-foreground font-medium">{question.text}</p>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setSelectedQuestion(selectedQuestion === question.id ? "" : question.id)}
+                              data-testid={`button-manage-answers-${question.id}`}
+                            >
+                              <i className="fas fa-edit mr-2"></i>
+                              Управлять ответами
+                            </Button>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-foreground">{question.text}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+                        </CardHeader>
+                        
+                        {selectedQuestion === question.id && (
+                          <CardContent className="pt-0 space-y-4">
+                            {/* Форма для добавления ответа */}
+                            <div className="bg-muted/50 p-4 rounded-lg">
+                              <form onSubmit={handleCreateAnswer} className="space-y-4" data-testid="form-create-answer">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                  <div className="md:col-span-3 space-y-2">
+                                    <Label htmlFor="answer-text">Новый ответ</Label>
+                                    <Input 
+                                      id="answer-text" 
+                                      name="text" 
+                                      placeholder="Введите вариант ответа..." 
+                                      required 
+                                      data-testid="input-answer-text"
+                                    />
+                                  </div>
+                                  <div className="flex items-end">
+                                    <div className="flex items-center space-x-2">
+                                      <Switch id="is-correct" name="isCorrect" />
+                                      <Label htmlFor="is-correct">Правильный</Label>
+                                    </div>
+                                  </div>
+                                </div>
+                                <Button type="submit" disabled={createAnswerMutation.isPending} data-testid="button-create-answer">
+                                  {createAnswerMutation.isPending ? "Создание..." : "Добавить ответ"}
+                                </Button>
+                              </form>
+                            </div>
 
-          <TabsContent value="answers" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Управление ответами</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="space-y-2">
-                    <Label>Выберите блок</Label>
-                    <select 
-                      className="w-full p-2 border border-border rounded-md bg-background"
-                      value={selectedBlock}
-                      onChange={(e) => {
-                        setSelectedBlock(e.target.value);
-                        setSelectedVariant("");
-                        setSelectedSubject("");
-                        setSelectedQuestion("");
-                      }}
-                      data-testid="select-block-for-answers"
-                    >
-                      <option value="">Выберите блок...</option>
-                      {blocks?.map((block) => (
-                        <option key={block.id} value={block.id}>{block.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Выберите вариант</Label>
-                    <select 
-                      className="w-full p-2 border border-border rounded-md bg-background"
-                      value={selectedVariant}
-                      onChange={(e) => {
-                        setSelectedVariant(e.target.value);
-                        setSelectedSubject("");
-                        setSelectedQuestion("");
-                      }}
-                      disabled={!selectedBlock}
-                      data-testid="select-variant-for-answers"
-                    >
-                      <option value="">Выберите вариант...</option>
-                      {variants?.map((variant) => (
-                        <option key={variant.id} value={variant.id}>{variant.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Выберите предмет</Label>
-                    <select 
-                      className="w-full p-2 border border-border rounded-md bg-background"
-                      value={selectedSubject}
-                      onChange={(e) => {
-                        setSelectedSubject(e.target.value);
-                        setSelectedQuestion("");
-                      }}
-                      disabled={!selectedVariant}
-                      data-testid="select-subject-for-answers"
-                    >
-                      <option value="">Выберите предмет...</option>
-                      {subjects?.map((subject) => (
-                        <option key={subject.id} value={subject.id}>{subject.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Выберите вопрос</Label>
-                    <select 
-                      className="w-full p-2 border border-border rounded-md bg-background"
-                      value={selectedQuestion}
-                      onChange={(e) => setSelectedQuestion(e.target.value)}
-                      disabled={!selectedSubject}
-                      data-testid="select-question"
-                    >
-                      <option value="">Выберите вопрос...</option>
-                      {questions?.map((question) => (
-                        <option key={question.id} value={question.id}>
-                          {question.text.slice(0, 50)}...
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {selectedQuestion && (
-                  <form onSubmit={handleCreateAnswer} className="space-y-4" data-testid="form-create-answer">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <div className="md:col-span-3 space-y-2">
-                        <Label htmlFor="answer-text">Текст ответа</Label>
-                        <Input 
-                          id="answer-text" 
-                          name="text" 
-                          placeholder="Введите вариант ответа..." 
-                          required 
-                          data-testid="input-answer-text"
-                        />
-                      </div>
-                      <div className="flex items-end">
-                        <div className="flex items-center space-x-2">
-                          <Switch id="is-correct" name="isCorrect" />
-                          <Label htmlFor="is-correct">Правильный</Label>
-                        </div>
-                      </div>
-                    </div>
-                    <Button type="submit" disabled={createAnswerMutation.isPending} data-testid="button-create-answer">
-                      {createAnswerMutation.isPending ? "Создание..." : "Создать ответ"}
-                    </Button>
-                  </form>
-                )}
-
-                {answers && answers.length > 0 && (
-                  <div className="space-y-4">
-                    {answers.map((answer, index) => (
-                      <div key={answer.id} className="flex items-center justify-between p-4 border border-border rounded-lg">
-                        <div className="flex items-center space-x-4">
-                          <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                            answer.isCorrect ? 'bg-accent text-accent-foreground' : 'bg-muted text-muted-foreground'
-                          }`}>
-                            {String.fromCharCode(65 + index)}
-                          </div>
-                          <span className="text-foreground">{answer.text}</span>
-                        </div>
-                        {answer.isCorrect && (
-                          <Badge variant="default" className="bg-accent">
-                            <i className="fas fa-check mr-1"></i>
-                            Правильный
-                          </Badge>
+                            {/* Список существующих ответов */}
+                            {answers && answers.length > 0 && (
+                              <div className="space-y-3">
+                                <Label className="text-sm font-medium">Существующие ответы:</Label>
+                                {answers.map((answer, index) => (
+                                  <div key={answer.id} className="flex items-center justify-between p-3 border border-border rounded-lg bg-background">
+                                    <div className="flex items-center space-x-3">
+                                      <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                                        answer.isCorrect ? 'bg-green-500/20 text-green-700 dark:text-green-400' : 'bg-muted text-muted-foreground'
+                                      }`}>
+                                        {String.fromCharCode(65 + index)}
+                                      </div>
+                                      <span className="text-foreground">{answer.text}</span>
+                                    </div>
+                                    {answer.isCorrect && (
+                                      <Badge variant="default" className="bg-green-500 hover:bg-green-600">
+                                        <i className="fas fa-check mr-1"></i>
+                                        Правильный
+                                      </Badge>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </CardContent>
                         )}
-                      </div>
+                      </Card>
                     ))}
                   </div>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
+
 
           <TabsContent value="video-recordings" className="space-y-6">
             <VideoRecordingsViewer />

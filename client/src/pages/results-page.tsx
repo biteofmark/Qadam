@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
+import { ExportDialog } from "@/components/ui/export-dialog";
 import type { TestResult } from "@shared/schema";
 
 interface NavigationState {
@@ -119,14 +120,23 @@ export default function ResultsPage() {
       <main className="container mx-auto px-4 lg:px-6 py-8">
         <div className="max-w-4xl mx-auto space-y-8">
           {/* Header */}
-          <div className="text-center space-y-4">
-            <div className="h-20 w-20 mx-auto rounded-full bg-accent/10 flex items-center justify-center">
-              <i className="fas fa-check-circle text-accent text-3xl"></i>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+            <div className="text-center sm:text-left space-y-4">
+              <div className="h-20 w-20 mx-auto sm:mx-0 rounded-full bg-accent/10 flex items-center justify-center">
+                <i className="fas fa-check-circle text-accent text-3xl"></i>
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-foreground">Тест завершен!</h1>
+                <p className="text-muted-foreground">
+                  Ваши результаты сохранены и учтены в общем рейтинге
+                </p>
+              </div>
             </div>
-            <h1 className="text-3xl font-bold text-foreground">Тест завершен!</h1>
-            <p className="text-muted-foreground">
-              Ваши результаты сохранены и учтены в общем рейтинге
-            </p>
+            <ExportDialog 
+              defaultType="TEST_REPORT"
+              title="Экспорт результатов"
+              description="Выберите формат для экспорта результатов теста"
+            />
           </div>
 
           {/* Overall Results */}

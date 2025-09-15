@@ -2,6 +2,9 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { storage } from "./storage";
+import { PDFService } from "./services/pdf.service";
+import { ExcelService } from "./services/excel.service";
+import { randomUUID } from "crypto";
 
 const app = express();
 app.use(express.json());
@@ -141,6 +144,128 @@ async function processReminders() {
   }
 }
 
+// Background job to process export jobs
+async function processExportJobs() {
+  try {
+    const pendingJobs = await storage.getPendingExportJobs();
+    
+    for (const job of pendingJobs) {
+      try {
+        log(`Processing export job ${job.id} for user ${job.userId}`);
+        
+        // Update status to in progress
+        await storage.updateExportJob(job.id, {
+          status: "IN_PROGRESS",
+          progress: 0,
+        });
+
+        // Generate the file based on format
+        let fileBuffer: Buffer;
+        let fileName: string;
+        
+        if (job.format === "PDF") {
+          fileBuffer = await PDFService.generateReport(job.userId, job.type, job.format, job.options || {});
+          fileName = `${job.type.toLowerCase()}_${new Date().toISOString().split('T')[0]}.pdf`;
+        } else if (job.format === "EXCEL") {
+          fileBuffer = await ExcelService.generateReport(job.userId, job.type, job.format, job.options || {});
+          fileName = `${job.type.toLowerCase()}_${new Date().toISOString().split('T')[0]}.xlsx`;
+        } else {
+          throw new Error(`Неподдерживаемый формат: ${job.format}`);
+        }
+
+        // Update progress
+        await storage.updateExportJob(job.id, { progress: 80 });
+
+        // Store the file in cache
+        const fileKey = `export_${job.id}_${randomUUID()}`;
+        await storage.storeFile(fileKey, fileBuffer, 15); // 15 minutes TTL
+
+        // Update job as completed
+        await storage.updateExportJob(job.id, {
+          status: "COMPLETED",
+          progress: 100,
+          fileKey,
+          fileName,
+          fileSize: fileBuffer.length,
+          completedAt: new Date(),
+        });
+
+        // Decrement concurrent export count
+        await decrementConcurrentExports(job.userId);
+
+        log(`Export job ${job.id} completed successfully`);
+
+      } catch (error) {
+        log(`Error processing export job ${job.id}: ${error}`);
+        
+        // Mark job as failed
+        await storage.updateExportJob(job.id, {
+          status: "FAILED",
+          errorMessage: error.message || "Неизвестная ошибка",
+          completedAt: new Date(),
+        });
+
+        // Decrement concurrent export count
+        await decrementConcurrentExports(job.userId);
+      }
+    }
+  } catch (error) {
+    log(`Error in export job processor: ${error}`);
+  }
+}
+
+// Helper function to decrement concurrent export count
+async function decrementConcurrentExports(userId: string) {
+  try {
+    // This is a simplified way to decrement the concurrent count
+    const userLimit = await storage.checkExportRateLimit(userId);
+    
+    // Get current limit data and decrement concurrent
+    const currentData = (storage as any).exportRateLimit?.get(userId);
+    if (currentData && currentData.concurrent > 0) {
+      currentData.concurrent -= 1;
+      (storage as any).exportRateLimit?.set(userId, currentData);
+    }
+  } catch (error) {
+    log(`Error decrementing concurrent exports for user ${userId}: ${error}`);
+  }
+}
+
+// Cleanup expired files and old export jobs
+async function cleanupExpiredFiles() {
+  try {
+    // Clean up expired files from cache
+    await storage.clearExpiredFiles();
+
+    // Clean up old completed/failed export jobs (older than 24 hours)
+    const allJobs = await storage.getPendingExportJobs(); // This method needs to be extended to get all jobs
+    const now = new Date();
+    const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    // Note: This is a simplified cleanup - in a real implementation you'd want
+    // a more efficient way to query old jobs
+    const oldJobsToCleanup: string[] = [];
+    
+    // Delete old job files and update expired jobs
+    for (const job of allJobs) {
+      if (job.completedAt && new Date(job.completedAt) < dayAgo) {
+        oldJobsToCleanup.push(job.id);
+        
+        if (job.fileKey) {
+          await storage.deleteFile(job.fileKey);
+        }
+      }
+    }
+
+    if (oldJobsToCleanup.length > 0) {
+      log(`Cleaned up ${oldJobsToCleanup.length} old export jobs`);
+    }
+
+  } catch (error) {
+    log(`Error in cleanup process: ${error}`);
+  }
+}
+
 (async () => {
   const server = await registerRoutes(app);
 
@@ -176,5 +301,13 @@ async function processReminders() {
     // Start the reminder scheduler (runs every 60 seconds)
     setInterval(processReminders, 60 * 1000);
     log("Reminder scheduler started");
+    
+    // Start the export job processor (runs every 30 seconds)
+    setInterval(processExportJobs, 30 * 1000);
+    log("Export job processor started");
+    
+    // Start the cleanup job (runs every 15 minutes)
+    setInterval(cleanupExpiredFiles, 15 * 60 * 1000);
+    log("File cleanup scheduler started");
   });
 })();

@@ -4,7 +4,8 @@ import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { insertBlockSchema, insertVariantSchema, insertSubjectSchema, insertQuestionSchema, insertAnswerSchema, insertTestResultSchema,
          insertNotificationSchema, insertNotificationSettingsSchema, insertReminderSchema, notificationTypeSchema,
-         analyticsOverviewSchema, subjectAggregateSchema, historyPointSchema, correctnessBreakdownSchema, comparisonStatsSchema } from "@shared/schema";
+         analyticsOverviewSchema, subjectAggregateSchema, historyPointSchema, correctnessBreakdownSchema, comparisonStatsSchema,
+         insertExportJobSchema, exportTypeSchema, exportFormatSchema, exportOptionsSchema } from "@shared/schema";
 
 // Authentication middleware
 function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -30,6 +31,23 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
 // Helper function to check if user is admin
 function isAdmin(user: any): boolean {
   return user && user.username === "admin";
+}
+
+// Rate limiting middleware for exports
+async function requireExportRateLimit(req: Request, res: Response, next: NextFunction) {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ message: "Требуется авторизация" });
+  }
+  
+  try {
+    const { allowed, reason } = await storage.checkExportRateLimit(req.user?.id!);
+    if (!allowed) {
+      return res.status(429).json({ message: reason });
+    }
+    next();
+  } catch (error) {
+    res.status(500).json({ message: "Ошибка проверки лимитов" });
+  }
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -622,6 +640,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "Ошибка удаления напоминания" });
+    }
+  });
+
+  // Export routes
+  app.post("/api/exports", requireExportRateLimit, async (req, res) => {
+    try {
+      const { type, format, options } = req.body;
+      
+      // Validate input
+      exportTypeSchema.parse(type);
+      exportFormatSchema.parse(format);
+      const validatedOptions = exportOptionsSchema.parse(options || {});
+      
+      const exportJob = await storage.createExportJob({
+        userId: req.user?.id!,
+        type,
+        format,
+        options: validatedOptions,
+        status: "PENDING",
+        progress: 0,
+      });
+
+      // Increment rate limiting counters
+      await storage.incrementExportCount(req.user?.id!);
+      
+      res.status(201).json({ jobId: exportJob.id });
+    } catch (error) {
+      res.status(400).json({ message: "Ошибка создания задания экспорта" });
+    }
+  });
+
+  app.get("/api/exports/:id/status", requireAuth, async (req, res) => {
+    try {
+      const job = await storage.getExportJob(req.params.id);
+      if (!job || job.userId !== req.user?.id) {
+        return res.status(404).json({ message: "Задание не найдено" });
+      }
+
+      const response: any = {
+        status: job.status,
+        progress: job.progress,
+        createdAt: job.createdAt,
+        completedAt: job.completedAt,
+      };
+
+      if (job.status === "COMPLETED" && job.fileKey) {
+        response.downloadUrl = `/api/exports/${job.id}/download`;
+        response.fileName = job.fileName;
+        response.fileSize = job.fileSize;
+      }
+
+      if (job.status === "FAILED") {
+        response.error = job.errorMessage;
+      }
+
+      res.json(response);
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка получения статуса задания" });
+    }
+  });
+
+  app.get("/api/exports/:id/download", requireAuth, async (req, res) => {
+    try {
+      const job = await storage.getExportJob(req.params.id);
+      if (!job || job.userId !== req.user?.id) {
+        return res.status(404).json({ message: "Задание не найдено" });
+      }
+
+      if (job.status !== "COMPLETED" || !job.fileKey) {
+        return res.status(404).json({ message: "Файл недоступен" });
+      }
+
+      const fileBuffer = await storage.getFile(job.fileKey);
+      if (!fileBuffer) {
+        return res.status(404).json({ message: "Файл не найден или истек" });
+      }
+
+      const contentType = job.format === "PDF" ? "application/pdf" : 
+                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Content-Length", fileBuffer.length);
+      res.setHeader("Content-Disposition", `attachment; filename="${job.fileName}"`);
+      res.send(fileBuffer);
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка скачивания файла" });
+    }
+  });
+
+  app.get("/api/exports", requireAuth, async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
+      const jobs = await storage.listExportJobsByUser(req.user?.id!, limit);
+      res.json(jobs);
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка получения списка экспортов" });
+    }
+  });
+
+  app.delete("/api/exports/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteExportJob(req.params.id, req.user?.id!);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка удаления задания экспорта" });
+    }
+  });
+
+  // Admin endpoint for monitoring exports
+  app.get("/api/admin/exports", requireAdmin, async (req, res) => {
+    try {
+      const pendingJobs = await storage.getPendingExportJobs();
+      res.json(pendingJobs);
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка получения заданий экспорта" });
     }
   });
 

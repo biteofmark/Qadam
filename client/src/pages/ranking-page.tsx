@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ExportDialog } from "@/components/ui/export-dialog";
 
 interface RankingUser {
   userId: string;
@@ -52,14 +53,23 @@ export default function RankingPage() {
       <Header />
       <main className="container mx-auto px-4 lg:px-6 py-8">
         {/* Header */}
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            <i className="fas fa-trophy text-yellow-500 mr-3"></i>
-            Рейтинг пользователей
-          </h1>
-          <p className="text-muted-foreground">
-            Лучшие результаты по итогам всех пройденных тестов
-          </p>
+        <div className="mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <div className="text-center sm:text-left">
+              <h1 className="text-3xl font-bold text-foreground mb-2">
+                <i className="fas fa-trophy text-yellow-500 mr-3"></i>
+                Рейтинг пользователей
+              </h1>
+              <p className="text-muted-foreground">
+                Лучшие результаты по итогам всех пройденных тестов
+              </p>
+            </div>
+            <ExportDialog 
+              defaultType="RANKINGS"
+              title="Экспорт рейтинга"
+              description="Выберите формат для экспорта рейтинга пользователей"
+            />
+          </div>
         </div>
 
         {/* Current User Stats */}

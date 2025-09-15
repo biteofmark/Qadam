@@ -3,7 +3,8 @@ import { type User, type InsertUser, type Block, type InsertBlock, type Variant,
          type TestResult, type InsertTestResult, type SubjectProgress, type UserRanking,
          type Notification, type InsertNotification, type NotificationSettings, type InsertNotificationSettings,
          type Reminder, type InsertReminder, type NotificationType,
-         type AnalyticsOverview, type SubjectAggregate, type HistoryPoint, type CorrectnessBreakdown, type ComparisonStats } from "@shared/schema";
+         type AnalyticsOverview, type SubjectAggregate, type HistoryPoint, type CorrectnessBreakdown, type ComparisonStats,
+         type ExportJob, type InsertExportJob, type ExportType } from "@shared/schema";
 import { randomUUID } from "crypto";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -89,6 +90,24 @@ export interface IStorage {
   getDueReminders(): Promise<Reminder[]>;
   markReminderAsSent(id: string): Promise<void>;
   
+  // Export Jobs
+  createExportJob(exportJob: InsertExportJob): Promise<ExportJob>;
+  getExportJob(id: string): Promise<ExportJob | undefined>;
+  listExportJobsByUser(userId: string, limit?: number): Promise<ExportJob[]>;
+  updateExportJob(id: string, update: Partial<ExportJob>): Promise<ExportJob | undefined>;
+  deleteExportJob(id: string, userId: string): Promise<void>;
+  getPendingExportJobs(): Promise<ExportJob[]>;
+  
+  // File Cache
+  storeFile(key: string, buffer: Buffer, ttl?: number): Promise<void>;
+  getFile(key: string): Promise<Buffer | undefined>;
+  deleteFile(key: string): Promise<void>;
+  clearExpiredFiles(): Promise<void>;
+  
+  // Rate Limiting
+  checkExportRateLimit(userId: string): Promise<{ allowed: boolean; reason?: string }>;
+  incrementExportCount(userId: string): Promise<void>;
+  
   sessionStore: session.Store;
 }
 
@@ -105,6 +124,9 @@ export class MemStorage implements IStorage {
   private notifications: Map<string, Notification>;
   private notificationSettings: Map<string, NotificationSettings>;
   private reminders: Map<string, Reminder>;
+  private exportJobs: Map<string, ExportJob>;
+  private fileCache: Map<string, { buffer: Buffer; expiresAt: number }>;
+  private exportRateLimit: Map<string, { count: number; lastReset: number; concurrent: number }>;
   
   sessionStore: session.Store;
 
@@ -121,6 +143,9 @@ export class MemStorage implements IStorage {
     this.notifications = new Map();
     this.notificationSettings = new Map();
     this.reminders = new Map();
+    this.exportJobs = new Map();
+    this.fileCache = new Map();
+    this.exportRateLimit = new Map();
     
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000,
@@ -783,7 +808,6 @@ export class MemStorage implements IStorage {
         new Date(n.createdAt) >= since
       ).length;
   }
-  }
 
   // Notification Settings methods
   async getNotificationSettings(userId: string): Promise<NotificationSettings | undefined> {
@@ -850,6 +874,174 @@ export class MemStorage implements IStorage {
     if (reminder) {
       reminder.lastSentAt = new Date();
       this.reminders.set(id, reminder);
+    }
+  }
+
+  // Export Jobs methods
+  async createExportJob(insertExportJob: InsertExportJob): Promise<ExportJob> {
+    const id = randomUUID();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // 24 hours from now
+
+    const exportJob: ExportJob = {
+      ...insertExportJob,
+      id,
+      createdAt: now,
+      completedAt: null,
+      expiresAt,
+    };
+    
+    this.exportJobs.set(id, exportJob);
+    return exportJob;
+  }
+
+  async getExportJob(id: string): Promise<ExportJob | undefined> {
+    return this.exportJobs.get(id);
+  }
+
+  async listExportJobsByUser(userId: string, limit = 10): Promise<ExportJob[]> {
+    return Array.from(this.exportJobs.values())
+      .filter(job => job.userId === userId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, limit);
+  }
+
+  async updateExportJob(id: string, update: Partial<ExportJob>): Promise<ExportJob | undefined> {
+    const job = this.exportJobs.get(id);
+    if (!job) return undefined;
+
+    const updatedJob = { ...job, ...update };
+    this.exportJobs.set(id, updatedJob);
+    return updatedJob;
+  }
+
+  async deleteExportJob(id: string, userId: string): Promise<void> {
+    const job = this.exportJobs.get(id);
+    if (job && job.userId === userId) {
+      // Clean up associated file if exists
+      if (job.fileKey) {
+        await this.deleteFile(job.fileKey);
+      }
+      this.exportJobs.delete(id);
+    }
+  }
+
+  async getPendingExportJobs(): Promise<ExportJob[]> {
+    return Array.from(this.exportJobs.values())
+      .filter(job => job.status === "PENDING")
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }
+
+  // File Cache methods
+  async storeFile(key: string, buffer: Buffer, ttl = 15): Promise<void> {
+    const expiresAt = Date.now() + (ttl * 60 * 1000); // TTL in minutes
+    
+    // Clean up expired files before storing
+    await this.clearExpiredFiles();
+    
+    // Check total cache size (200MB limit)
+    const currentSize = Array.from(this.fileCache.values())
+      .reduce((total, item) => total + item.buffer.length, 0);
+    
+    if (currentSize + buffer.length > 200 * 1024 * 1024) {
+      // Remove oldest files to make space
+      const entries = Array.from(this.fileCache.entries())
+        .sort((a, b) => a[1].expiresAt - b[1].expiresAt);
+      
+      let removedSize = 0;
+      for (const [oldKey] of entries) {
+        const item = this.fileCache.get(oldKey);
+        if (item) {
+          removedSize += item.buffer.length;
+          this.fileCache.delete(oldKey);
+          if (currentSize - removedSize + buffer.length <= 200 * 1024 * 1024) break;
+        }
+      }
+    }
+    
+    this.fileCache.set(key, { buffer, expiresAt });
+  }
+
+  async getFile(key: string): Promise<Buffer | undefined> {
+    const item = this.fileCache.get(key);
+    if (!item) return undefined;
+    
+    // Check if expired
+    if (Date.now() > item.expiresAt) {
+      this.fileCache.delete(key);
+      return undefined;
+    }
+    
+    return item.buffer;
+  }
+
+  async deleteFile(key: string): Promise<void> {
+    this.fileCache.delete(key);
+  }
+
+  async clearExpiredFiles(): Promise<void> {
+    const now = Date.now();
+    for (const [key, item] of this.fileCache.entries()) {
+      if (now > item.expiresAt) {
+        this.fileCache.delete(key);
+      }
+    }
+  }
+
+  // Rate Limiting methods
+  async checkExportRateLimit(userId: string): Promise<{ allowed: boolean; reason?: string }> {
+    const now = Date.now();
+    const userLimit = this.exportRateLimit.get(userId);
+    
+    if (!userLimit) {
+      return { allowed: true };
+    }
+
+    // Reset count if it's been more than an hour
+    if (now - userLimit.lastReset > 60 * 60 * 1000) {
+      userLimit.count = 0;
+      userLimit.lastReset = now;
+      this.exportRateLimit.set(userId, userLimit);
+    }
+
+    // Check concurrent limit (1 concurrent)
+    if (userLimit.concurrent > 0) {
+      return { allowed: false, reason: "У вас уже есть запущенный экспорт. Дождитесь его завершения." };
+    }
+
+    // Check hourly limit (5 per hour)
+    if (userLimit.count >= 5) {
+      return { allowed: false, reason: "Превышен лимит: максимум 5 экспортов в час." };
+    }
+
+    // Check daily limit (20 per day) - simplified as 24 hours from first export
+    const jobsToday = Array.from(this.exportJobs.values())
+      .filter(job => 
+        job.userId === userId && 
+        now - new Date(job.createdAt).getTime() < 24 * 60 * 60 * 1000
+      ).length;
+
+    if (jobsToday >= 20) {
+      return { allowed: false, reason: "Превышен дневной лимит: максимум 20 экспортов в день." };
+    }
+
+    return { allowed: true };
+  }
+
+  async incrementExportCount(userId: string): Promise<void> {
+    const now = Date.now();
+    const userLimit = this.exportRateLimit.get(userId);
+    
+    if (!userLimit) {
+      this.exportRateLimit.set(userId, {
+        count: 1,
+        lastReset: now,
+        concurrent: 1,
+      });
+    } else {
+      userLimit.count += 1;
+      userLimit.concurrent += 1;
+      this.exportRateLimit.set(userId, userLimit);
     }
   }
 }

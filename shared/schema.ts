@@ -252,3 +252,71 @@ export type SubjectAggregate = z.infer<typeof subjectAggregateSchema>;
 export type HistoryPoint = z.infer<typeof historyPointSchema>;
 export type CorrectnessBreakdown = z.infer<typeof correctnessBreakdownSchema>;
 export type ComparisonStats = z.infer<typeof comparisonStatsSchema>;
+
+// Export types and schemas
+export const exportTypeSchema = z.enum([
+  "TEST_REPORT", 
+  "USER_ANALYTICS", 
+  "RANKINGS", 
+  "PERIOD_SUMMARY"
+]);
+
+export const exportFormatSchema = z.enum([
+  "PDF",
+  "EXCEL"
+]);
+
+export const exportStatusSchema = z.enum([
+  "PENDING",
+  "IN_PROGRESS", 
+  "COMPLETED",
+  "FAILED"
+]);
+
+export type ExportType = z.infer<typeof exportTypeSchema>;
+export type ExportFormat = z.infer<typeof exportFormatSchema>;
+export type ExportStatus = z.infer<typeof exportStatusSchema>;
+
+// Date range schema for exports
+export const dateRangeSchema = z.object({
+  from: z.string().optional(),
+  to: z.string().optional(),
+});
+
+// Export options schema
+export const exportOptionsSchema = z.object({
+  dateRange: dateRangeSchema.optional(),
+  subjects: z.array(z.string()).optional(),
+  includeCharts: z.boolean().default(true),
+  columns: z.array(z.string()).optional(),
+  title: z.string().optional(),
+  description: z.string().optional(),
+});
+
+// Export jobs table
+export const exportJobs = pgTable("export_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  format: text("format").notNull(),
+  options: jsonb("options"),
+  status: text("status").notNull().default("PENDING"),
+  progress: integer("progress").default(0),
+  fileKey: text("file_key"),
+  fileSize: integer("file_size"),
+  fileName: text("file_name"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+  expiresAt: timestamp("expires_at"),
+});
+
+export const insertExportJobSchema = createInsertSchema(exportJobs).omit({
+  id: true,
+  createdAt: true,
+  completedAt: true,
+});
+
+export type ExportJob = typeof exportJobs.$inferSelect;
+export type InsertExportJob = z.infer<typeof insertExportJobSchema>;
+export type ExportOptions = z.infer<typeof exportOptionsSchema>;

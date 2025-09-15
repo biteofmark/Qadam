@@ -32,6 +32,7 @@ import type {
   ComparisonStats 
 } from "@shared/schema";
 import Header from "@/components/layout/header";
+import { ExportDialog } from "@/components/ui/export-dialog";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
@@ -435,11 +436,18 @@ export default function AnalyticsPage() {
     <div className="min-h-screen bg-background">
       <Header />
       <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight" data-testid="title-analytics">Аналитика результатов</h1>
-          <p className="text-muted-foreground">
-            Детальная статистика ваших результатов тестирования
-          </p>
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight" data-testid="title-analytics">Аналитика результатов</h1>
+            <p className="text-muted-foreground">
+              Детальная статистика ваших результатов тестирования
+            </p>
+          </div>
+          <ExportDialog 
+            defaultType="USER_ANALYTICS"
+            title="Экспорт аналитики"
+            description="Выберите формат для экспорта вашей аналитики"
+          />
         </div>
 
         <div className="space-y-8">

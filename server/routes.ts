@@ -2,7 +2,8 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
-import { insertBlockSchema, insertVariantSchema, insertSubjectSchema, insertQuestionSchema, insertAnswerSchema, insertTestResultSchema } from "@shared/schema";
+import { insertBlockSchema, insertVariantSchema, insertSubjectSchema, insertQuestionSchema, insertAnswerSchema, insertTestResultSchema,
+         analyticsOverviewSchema, subjectAggregateSchema, historyPointSchema, correctnessBreakdownSchema, comparisonStatsSchema } from "@shared/schema";
 
 // Authentication middleware
 function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -352,6 +353,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(rankingsWithUsernames);
     } catch (error) {
       res.status(500).json({ message: "Ошибка получения рейтинга" });
+    }
+  });
+
+  // Analytics routes
+  app.get("/api/analytics/overview", requireAuth, async (req, res) => {
+    try {
+      const overview = await storage.getAnalyticsOverview(req.user?.id!);
+      const validatedData = analyticsOverviewSchema.parse(overview);
+      res.json(validatedData);
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка получения общей аналитики" });
+    }
+  });
+
+  app.get("/api/analytics/subjects", requireAuth, async (req, res) => {
+    try {
+      const subjects = await storage.getSubjectAggregates(req.user?.id!);
+      const validatedData = subjects.map(subject => subjectAggregateSchema.parse(subject));
+      res.json(validatedData);
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка получения аналитики по предметам" });
+    }
+  });
+
+  app.get("/api/analytics/history", requireAuth, async (req, res) => {
+    try {
+      const rangeDays = req.query.range ? parseInt(req.query.range as string) : 30;
+      
+      if (isNaN(rangeDays) || rangeDays <= 0 || rangeDays > 365) {
+        return res.status(400).json({ message: "Недопустимый диапазон дней (1-365)" });
+      }
+
+      const history = await storage.getHistory(req.user?.id!, rangeDays);
+      const validatedData = history.map(point => historyPointSchema.parse(point));
+      res.json(validatedData);
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка получения исторической аналитики" });
+    }
+  });
+
+  app.get("/api/analytics/correctness", requireAuth, async (req, res) => {
+    try {
+      const rangeDays = req.query.range ? parseInt(req.query.range as string) : 30;
+      
+      if (isNaN(rangeDays) || rangeDays <= 0 || rangeDays > 365) {
+        return res.status(400).json({ message: "Недопустимый диапазон дней (1-365)" });
+      }
+
+      const breakdown = await storage.getCorrectnessBreakdown(req.user?.id!, rangeDays);
+      const validatedData = breakdown.map(point => correctnessBreakdownSchema.parse(point));
+      res.json(validatedData);
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка получения аналитики правильности ответов" });
+    }
+  });
+
+  app.get("/api/analytics/comparison", requireAuth, async (req, res) => {
+    try {
+      const comparison = await storage.getComparison(req.user?.id!);
+      const validatedData = comparisonStatsSchema.parse(comparison);
+      res.json(validatedData);
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка получения сравнительной аналитики" });
     }
   });
 

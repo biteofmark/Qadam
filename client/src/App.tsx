@@ -14,6 +14,7 @@ import ResultsPage from "@/pages/results-page";
 import ProfilePage from "@/pages/profile-page";
 import AdminPage from "@/pages/admin-page";
 import RankingPage from "@/pages/ranking-page";
+import AnalyticsPage from "@/pages/analytics-page";
 import { ProtectedRoute } from "./lib/protected-route";
 
 function Router() {
@@ -24,6 +25,7 @@ function Router() {
       <ProtectedRoute path="/test/:variantId" component={() => <TestPage />} />
       <ProtectedRoute path="/results" component={() => <ResultsPage />} />
       <ProtectedRoute path="/profile" component={() => <ProfilePage />} />
+      <ProtectedRoute path="/analytics" component={() => <AnalyticsPage />} />
       <ProtectedRoute path="/admin" component={() => <AdminPage />} />
       <ProtectedRoute path="/ranking" component={() => <RankingPage />} />
       <Route path="/auth" component={AuthPage} />

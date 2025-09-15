@@ -20,6 +20,7 @@ export default function Header() {
   const navigation = [
     { href: "/", label: "Главная", icon: "fas fa-home" },
     { href: "/profile", label: "Мой профиль", icon: "fas fa-user" },
+    { href: "/analytics", label: "Аналитика", icon: "fas fa-chart-line" },
     { href: "/ranking", label: "Рейтинг", icon: "fas fa-trophy" },
     { href: "/admin", label: "Админка", icon: "fas fa-cog", adminOnly: true },
   ];

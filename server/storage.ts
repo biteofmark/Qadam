@@ -1,6 +1,7 @@
 import { type User, type InsertUser, type Block, type InsertBlock, type Variant, type InsertVariant, 
          type Subject, type InsertSubject, type Question, type InsertQuestion, type Answer, type InsertAnswer,
-         type TestResult, type InsertTestResult, type SubjectProgress, type UserRanking } from "@shared/schema";
+         type TestResult, type InsertTestResult, type SubjectProgress, type UserRanking,
+         type AnalyticsOverview, type SubjectAggregate, type HistoryPoint, type CorrectnessBreakdown, type ComparisonStats } from "@shared/schema";
 import { randomUUID } from "crypto";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -57,6 +58,13 @@ export interface IStorage {
   // Subject Progress
   getSubjectProgress(userId: string): Promise<SubjectProgress[]>;
   updateSubjectProgress(userId: string, subjectName: string, totalAnswered: number, correctAnswered: number): Promise<void>;
+  
+  // Analytics
+  getAnalyticsOverview(userId: string): Promise<AnalyticsOverview>;
+  getSubjectAggregates(userId: string): Promise<SubjectAggregate[]>;
+  getHistory(userId: string, rangeDays?: number): Promise<HistoryPoint[]>;
+  getCorrectnessBreakdown(userId: string, rangeDays?: number): Promise<CorrectnessBreakdown[]>;
+  getComparison(userId: string): Promise<ComparisonStats>;
   
   sessionStore: session.Store;
 }
@@ -445,6 +453,241 @@ export class MemStorage implements IStorage {
       };
       this.subjectProgress.set(id, progress);
     }
+  }
+
+  // Analytics methods
+  async getAnalyticsOverview(userId: string): Promise<AnalyticsOverview> {
+    const userResults = await this.getTestResultsByUser(userId);
+    const subjectProgress = await this.getSubjectProgress(userId);
+    
+    if (userResults.length === 0) {
+      return {
+        totalTests: 0,
+        averageScore: 0,
+        totalTimeSpent: 0,
+        bestSubject: "",
+        worstSubject: "",
+        totalQuestions: 0,
+        correctAnswers: 0,
+        recentActivity: 0,
+      };
+    }
+
+    const totalTests = userResults.length;
+    const averageScore = userResults.reduce((sum, r) => sum + r.percentage, 0) / totalTests;
+    const totalTimeSpent = userResults.reduce((sum, r) => sum + r.timeSpent, 0);
+    const totalQuestions = userResults.reduce((sum, r) => sum + r.totalQuestions, 0);
+    const correctAnswers = userResults.reduce((sum, r) => sum + r.score, 0);
+
+    // Calculate best and worst subjects
+    const subjectStats = subjectProgress.reduce((acc, p) => {
+      const totalAnswered = p.totalAnswered || 0;
+      const correctAnswered = p.correctAnswered || 0;
+      const percentage = totalAnswered > 0 ? (correctAnswered / totalAnswered) * 100 : 0;
+      acc[p.subjectName] = percentage;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const subjects = Object.keys(subjectStats);
+    const bestSubject = subjects.reduce((best, current) => 
+      subjectStats[current] > subjectStats[best] ? current : best, subjects[0] || "");
+    const worstSubject = subjects.reduce((worst, current) => 
+      subjectStats[current] < subjectStats[worst] ? current : worst, subjects[0] || "");
+
+    // Calculate recent activity (tests in last 7 days)
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const recentActivity = userResults.filter(r => 
+      r.completedAt && new Date(r.completedAt) > weekAgo
+    ).length;
+
+    return {
+      totalTests,
+      averageScore,
+      totalTimeSpent,
+      bestSubject,
+      worstSubject,
+      totalQuestions,
+      correctAnswers,
+      recentActivity,
+    };
+  }
+
+  async getSubjectAggregates(userId: string): Promise<SubjectAggregate[]> {
+    const userResults = await this.getTestResultsByUser(userId);
+    const subjectProgress = await this.getSubjectProgress(userId);
+    
+    // Group test results by subject
+    const subjectGroups: Record<string, TestResult[]> = {};
+    
+    for (const result of userResults) {
+      const variant = await this.getVariant(result.variantId);
+      if (!variant) continue;
+      
+      const subjects = await this.getSubjectsByVariant(variant.id);
+      for (const subject of subjects) {
+        if (!subjectGroups[subject.name]) {
+          subjectGroups[subject.name] = [];
+        }
+        subjectGroups[subject.name].push(result);
+      }
+    }
+
+    const aggregates: SubjectAggregate[] = [];
+    
+    for (const subjectName in subjectGroups) {
+      const results = subjectGroups[subjectName];
+      const progress = subjectProgress.find(p => p.subjectName === subjectName);
+      
+      const testsCount = results.length;
+      const averageScore = testsCount > 0 ? 
+        results.reduce((sum, r) => sum + r.percentage, 0) / testsCount : 0;
+      const totalQuestions = progress?.totalAnswered || 0;
+      const correctAnswers = progress?.correctAnswered || 0;
+      const averageTimeSpent = testsCount > 0 ? 
+        results.reduce((sum, r) => sum + r.timeSpent, 0) / testsCount : 0;
+
+      aggregates.push({
+        subjectName,
+        testsCount,
+        averageScore,
+        totalQuestions,
+        correctAnswers,
+        averageTimeSpent,
+      });
+    }
+
+    return aggregates.sort((a, b) => b.averageScore - a.averageScore);
+  }
+
+  async getHistory(userId: string, rangeDays: number = 30): Promise<HistoryPoint[]> {
+    const userResults = await this.getTestResultsByUser(userId);
+    
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - rangeDays);
+    
+    // Filter results within date range
+    const filteredResults = userResults.filter(r => 
+      r.completedAt && 
+      new Date(r.completedAt) >= startDate && 
+      new Date(r.completedAt) <= endDate
+    );
+
+    // Group by date
+    const dateGroups: Record<string, TestResult[]> = {};
+    
+    for (const result of filteredResults) {
+      if (!result.completedAt) continue;
+      const dateKey = new Date(result.completedAt).toISOString().split('T')[0];
+      if (!dateGroups[dateKey]) {
+        dateGroups[dateKey] = [];
+      }
+      dateGroups[dateKey].push(result);
+    }
+
+    const history: HistoryPoint[] = [];
+    
+    // Generate all dates in range
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateKey = d.toISOString().split('T')[0];
+      const dayResults = dateGroups[dateKey] || [];
+      
+      const testsCompleted = dayResults.length;
+      const averageScore = testsCompleted > 0 ? 
+        dayResults.reduce((sum, r) => sum + r.percentage, 0) / testsCompleted : 0;
+      const totalTimeSpent = dayResults.reduce((sum, r) => sum + r.timeSpent, 0);
+
+      history.push({
+        date: dateKey,
+        testsCompleted,
+        averageScore,
+        totalTimeSpent,
+      });
+    }
+
+    return history;
+  }
+
+  async getCorrectnessBreakdown(userId: string, rangeDays: number = 30): Promise<CorrectnessBreakdown[]> {
+    const userResults = await this.getTestResultsByUser(userId);
+    
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - rangeDays);
+    
+    // Filter results within date range
+    const filteredResults = userResults.filter(r => 
+      r.completedAt && 
+      new Date(r.completedAt) >= startDate && 
+      new Date(r.completedAt) <= endDate
+    );
+
+    // Group by date
+    const dateGroups: Record<string, TestResult[]> = {};
+    
+    for (const result of filteredResults) {
+      if (!result.completedAt) continue;
+      const dateKey = new Date(result.completedAt).toISOString().split('T')[0];
+      if (!dateGroups[dateKey]) {
+        dateGroups[dateKey] = [];
+      }
+      dateGroups[dateKey].push(result);
+    }
+
+    const breakdown: CorrectnessBreakdown[] = [];
+    
+    // Generate all dates in range
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateKey = d.toISOString().split('T')[0];
+      const dayResults = dateGroups[dateKey] || [];
+      
+      const correctAnswers = dayResults.reduce((sum, r) => sum + r.score, 0);
+      const totalQuestions = dayResults.reduce((sum, r) => sum + r.totalQuestions, 0);
+      const incorrectAnswers = totalQuestions - correctAnswers;
+
+      breakdown.push({
+        date: dateKey,
+        correctAnswers,
+        incorrectAnswers,
+        totalQuestions,
+      });
+    }
+
+    return breakdown;
+  }
+
+  async getComparison(userId: string): Promise<ComparisonStats> {
+    const allRankings = await this.getAllRankings();
+    const userRanking = await this.getUserRanking(userId);
+    
+    if (!userRanking || allRankings.length === 0) {
+      return {
+        userRank: 0,
+        totalUsers: 0,
+        userScore: 0,
+        averageScore: 0,
+        percentile: 0,
+        topUserScore: 0,
+      };
+    }
+
+    const sortedRankings = allRankings.sort((a, b) => (b.totalScore || 0) - (a.totalScore || 0));
+    const userRank = sortedRankings.findIndex(r => r.userId === userId) + 1;
+    const totalUsers = sortedRankings.length;
+    const userScore = userRanking.averagePercentage || 0;
+    const averageScore = sortedRankings.reduce((sum, r) => sum + (r.averagePercentage || 0), 0) / totalUsers;
+    const percentile = totalUsers > 0 ? ((totalUsers - userRank + 1) / totalUsers) * 100 : 0;
+    const topUserScore = sortedRankings[0]?.averagePercentage || 0;
+
+    return {
+      userRank,
+      totalUsers,
+      userScore,
+      averageScore,
+      percentile,
+      topUserScore,
+    };
   }
 }
 

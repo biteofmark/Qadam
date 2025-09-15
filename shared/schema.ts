@@ -101,6 +101,50 @@ export const insertTestResultSchema = createInsertSchema(testResults).omit({
   completedAt: true,
 });
 
+// Analytics Zod DTO schemas
+export const analyticsOverviewSchema = z.object({
+  totalTests: z.number(),
+  averageScore: z.number(),
+  totalTimeSpent: z.number(),
+  bestSubject: z.string(),
+  worstSubject: z.string(),
+  totalQuestions: z.number(),
+  correctAnswers: z.number(),
+  recentActivity: z.number(),
+});
+
+export const subjectAggregateSchema = z.object({
+  subjectName: z.string(),
+  testsCount: z.number(),
+  averageScore: z.number(),
+  totalQuestions: z.number(),
+  correctAnswers: z.number(),
+  averageTimeSpent: z.number(),
+});
+
+export const historyPointSchema = z.object({
+  date: z.string(),
+  testsCompleted: z.number(),
+  averageScore: z.number(),
+  totalTimeSpent: z.number(),
+});
+
+export const correctnessBreakdownSchema = z.object({
+  date: z.string(),
+  correctAnswers: z.number(),
+  incorrectAnswers: z.number(),
+  totalQuestions: z.number(),
+});
+
+export const comparisonStatsSchema = z.object({
+  userRank: z.number(),
+  totalUsers: z.number(),
+  userScore: z.number(),
+  averageScore: z.number(),
+  percentile: z.number(),
+  topUserScore: z.number(),
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -125,3 +169,10 @@ export type InsertTestResult = z.infer<typeof insertTestResultSchema>;
 
 export type SubjectProgress = typeof subjectProgress.$inferSelect;
 export type UserRanking = typeof userRankings.$inferSelect;
+
+// Analytics types
+export type AnalyticsOverview = z.infer<typeof analyticsOverviewSchema>;
+export type SubjectAggregate = z.infer<typeof subjectAggregateSchema>;
+export type HistoryPoint = z.infer<typeof historyPointSchema>;
+export type CorrectnessBreakdown = z.infer<typeof correctnessBreakdownSchema>;
+export type ComparisonStats = z.infer<typeof comparisonStatsSchema>;

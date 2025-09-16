@@ -72,6 +72,7 @@ export const variants = pgTable("variants", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   blockId: varchar("block_id").notNull().references(() => blocks.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
+  isFree: boolean("is_free").default(false),
 });
 
 export const subjects = pgTable("subjects", {

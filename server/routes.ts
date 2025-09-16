@@ -1023,12 +1023,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.addVideoSegment(recording.id, uploadPath);
       
       // Update metadata
+      const currentMetadata = recording.metadata || { segments: [] };
       await storage.updateVideoRecording(recording.id, {
         totalDurationMs: recording.totalDurationMs + duration,
         metadata: {
-          ...recording.metadata,
+          ...currentMetadata,
           segments: [
-            ...(recording.metadata?.segments || []),
+            ...(currentMetadata.segments || []),
             {
               index: segmentIndex,
               path: uploadPath,

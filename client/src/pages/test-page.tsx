@@ -111,13 +111,8 @@ export default function TestPage() {
             pending: prev.pending + 1
           }));
         },
-        onUploadProgress: (segment: VideoSegment, uploaded: boolean) => {
-          setUploadProgress(prev => ({
-            ...prev,
-            uploaded: uploaded ? prev.uploaded + 1 : prev.uploaded,
-            pending: uploaded ? prev.pending - 1 : prev.pending,
-            failed: uploaded ? prev.failed : prev.failed + 1
-          }));
+        onUploadProgress: (progress: UploadProgress) => {
+          setUploadProgress(progress);
         },
         onRecordingStatusChange: (recording: boolean) => {
           setIsRecording(recording);
@@ -292,7 +287,14 @@ export default function TestPage() {
           const activeTest: ActiveTest = {
             id: `${variantId}-${user?.id}`,
             variantId,
-            variant: testData.variant,
+            variant: {
+              ...testData.variant,
+              block: {
+                ...testData.variant.block,
+                hasCalculator: testData.variant.block.hasCalculator ?? false,
+                hasPeriodicTable: testData.variant.block.hasPeriodicTable ?? false,
+              }
+            },
             testData: testData.testData,
             userAnswers,
             startedAt: testStartTime,

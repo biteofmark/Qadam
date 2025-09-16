@@ -18,7 +18,7 @@ export default function AuthPage() {
 
   // Redirect if already logged in
   if (user) {
-    setLocation("/");
+    setLocation("/dashboard");
     return null;
   }
 
@@ -36,7 +36,7 @@ export default function AuthPage() {
 
     loginMutation.mutate(loginForm, {
       onSuccess: () => {
-        setLocation("/");
+        setLocation("/dashboard");
       },
     });
   };
@@ -85,7 +85,7 @@ export default function AuthPage() {
       password: registerForm.password,
     }, {
       onSuccess: () => {
-        setLocation("/");
+        setLocation("/dashboard");
       },
     });
   };

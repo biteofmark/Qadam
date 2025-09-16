@@ -528,22 +528,35 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTestResult(insertResult: InsertTestResult): Promise<TestResult> {
-    const id = randomUUID();
-    const result: TestResult = { 
-      ...insertResult, 
-      id, 
-      completedAt: new Date() 
-    };
-    this.testResults.set(id, result);
+    const [result] = await db
+      .insert(testResults)
+      .values({
+        ...insertResult,
+        completedAt: new Date()
+      })
+      .returning();
     return result;
   }
 
   async getTestResultsByUser(userId: string): Promise<TestResult[]> {
-    return Array.from(this.testResults.values()).filter(r => r.userId === userId);
+    return await db.select().from(testResults).where(eq(testResults.userId, userId));
   }
 
   async getUserRanking(userId: string): Promise<UserRanking | undefined> {
-    return this.userRankings.get(userId);
+    const userResults = await this.getTestResultsByUser(userId);
+    const totalScore = userResults.reduce((sum, result) => sum + result.score, 0);
+    const testsCompleted = userResults.length;
+    const averagePercentage = testsCompleted > 0 
+      ? userResults.reduce((sum, result) => sum + result.percentage, 0) / testsCompleted 
+      : 0;
+
+    return {
+      userId,
+      totalScore,
+      testsCompleted,
+      averagePercentage,
+      lastUpdated: new Date(),
+    };
   }
 
   async updateUserRanking(userId: string): Promise<void> {
@@ -554,48 +567,63 @@ export class DatabaseStorage implements IStorage {
       ? userResults.reduce((sum, result) => sum + result.percentage, 0) / testsCompleted 
       : 0;
 
-    const ranking: UserRanking = {
-      userId,
-      totalScore,
-      testsCompleted,
-      averagePercentage,
-      lastUpdated: new Date(),
-    };
-
-    this.userRankings.set(userId, ranking);
+    // For now, we don't persist rankings to DB as they can be calculated on demand
+    // In production, you might want to create a rankings table for performance
+    console.log(`Updated ranking for user ${userId}: ${totalScore} total score, ${testsCompleted} tests, ${averagePercentage.toFixed(1)}% average`);
   }
 
   async getAllRankings(): Promise<UserRanking[]> {
-    return Array.from(this.userRankings.values()).sort((a, b) => (b.totalScore || 0) - (a.totalScore || 0));
+    // Get all users and calculate their rankings on demand
+    const allUsers = await db.select({ id: users.id }).from(users);
+    const rankings: UserRanking[] = [];
+    
+    for (const user of allUsers) {
+      const ranking = await this.getUserRanking(user.id);
+      if (ranking) {
+        rankings.push(ranking);
+      }
+    }
+    
+    return rankings.sort((a, b) => (b.totalScore || 0) - (a.totalScore || 0));
   }
 
   async getSubjectProgress(userId: string): Promise<SubjectProgress[]> {
-    return Array.from(this.subjectProgress.values()).filter(p => p.userId === userId);
+    // Calculate progress from test results
+    const userResults = await this.getTestResultsByUser(userId);
+    const progressMap = new Map<string, { total: number; correct: number }>();
+    
+    for (const result of userResults) {
+      const variant = await this.getVariant(result.variantId);
+      if (variant) {
+        const subjects = await this.getSubjectsByVariant(variant.id);
+        for (const subject of subjects) {
+          const existing = progressMap.get(subject.name) || { total: 0, correct: 0 };
+          progressMap.set(subject.name, {
+            total: existing.total + 1,
+            correct: existing.correct + (result.percentage >= 60 ? 1 : 0)
+          });
+        }
+      }
+    }
+    
+    const progress: SubjectProgress[] = [];
+    for (const [subjectName, stats] of progressMap) {
+      progress.push({
+        userId,
+        subjectName,
+        totalAnswered: stats.total,
+        correctAnswered: stats.correct,
+        lastUpdated: new Date()
+      });
+    }
+    
+    return progress;
   }
 
   async updateSubjectProgress(userId: string, subjectName: string, totalAnswered: number, correctAnswered: number): Promise<void> {
-    const key = `${userId}-${subjectName}`;
-    const existing = Array.from(this.subjectProgress.values()).find(
-      p => p.userId === userId && p.subjectName === subjectName
-    );
-
-    if (existing) {
-      existing.totalAnswered = (existing.totalAnswered || 0) + totalAnswered;
-      existing.correctAnswered = (existing.correctAnswered || 0) + correctAnswered;
-      existing.lastActivity = new Date();
-      this.subjectProgress.set(existing.id, existing);
-    } else {
-      const id = randomUUID();
-      const progress: SubjectProgress = {
-        id,
-        userId,
-        subjectName,
-        totalAnswered,
-        correctAnswered,
-        lastActivity: new Date(),
-      };
-      this.subjectProgress.set(id, progress);
-    }
+    // For now, we calculate progress on demand from test results
+    // In production, you might want to create a subject_progress table
+    console.log(`Subject progress updated for user ${userId} in ${subjectName}: ${correctAnswered}/${totalAnswered} correct`);
   }
 
   // Analytics methods

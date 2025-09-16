@@ -863,32 +863,46 @@ export class DatabaseStorage implements IStorage {
 
   // Notification methods
   async createNotification(insertNotification: InsertNotification): Promise<Notification> {
-    const id = randomUUID();
-    const notification: Notification = {
-      ...insertNotification,
-      id,
-      createdAt: new Date(),
-      readAt: null,
-    };
-    this.notifications.set(id, notification);
+    const [notification] = await db
+      .insert(notifications)
+      .values({
+        ...insertNotification,
+        createdAt: new Date(),
+        readAt: null
+      })
+      .returning();
     return notification;
   }
 
   async getNotifications(userId: string, page: number = 1, limit: number = 10, type?: NotificationType): Promise<{ notifications: Notification[], total: number }> {
-    const userNotifications = Array.from(this.notifications.values())
-      .filter(n => n.userId === userId && (!type || n.type === type))
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    
-    const total = userNotifications.length;
     const offset = (page - 1) * limit;
-    const notifications = userNotifications.slice(offset, offset + limit);
     
-    return { notifications, total };
+    let query = db.select().from(notifications).where(eq(notifications.userId, userId));
+    
+    if (type) {
+      query = query.where(eq(notifications.type, type));
+    }
+    
+    const userNotifications = await query
+      .orderBy(desc(notifications.createdAt))
+      .limit(limit)
+      .offset(offset);
+    
+    // Get total count for pagination
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(notifications)
+      .where(eq(notifications.userId, userId));
+    
+    return { notifications: userNotifications, total: count };
   }
 
   async getUnreadNotificationCount(userId: string): Promise<number> {
-    return Array.from(this.notifications.values())
-      .filter(n => n.userId === userId && !n.isRead).length;
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(notifications)
+      .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
+    return count;
   }
 
   async markNotificationAsRead(id: string, userId: string): Promise<void> {

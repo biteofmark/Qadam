@@ -8,6 +8,7 @@ import { AuthProvider } from "./hooks/use-auth";
 import { ThemeProvider } from "./components/theme-provider";
 import NotFound from "@/pages/not-found";
 import HomePage from "@/pages/home-page";
+import PublicHomePage from "@/pages/public-home-page";
 import AuthPage from "@/pages/auth-page";
 import BlockVariantsPage from "@/pages/block-variants";
 import TestPage from "@/pages/test-page";
@@ -40,7 +41,12 @@ const PageSkeleton = () => (
 function Router() {
   return (
     <Switch>
-      <ProtectedRoute path="/" component={() => <HomePage />} />
+      {/* Public routes */}
+      <Route path="/" component={PublicHomePage} />
+      <Route path="/auth" component={AuthPage} />
+      
+      {/* Protected routes */}
+      <ProtectedRoute path="/dashboard" component={() => <HomePage />} />
       <ProtectedRoute path="/block/:blockId" component={() => <BlockVariantsPage />} />
       <ProtectedRoute path="/test/:variantId" component={() => <TestPage />} />
       <ProtectedRoute path="/results" component={() => <ResultsPage />} />
@@ -57,7 +63,7 @@ function Router() {
         </Suspense>
       )} />
       <ProtectedRoute path="/ranking" component={() => <RankingPage />} />
-      <Route path="/auth" component={AuthPage} />
+      
       <Route component={NotFound} />
     </Switch>
   );

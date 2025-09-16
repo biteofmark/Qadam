@@ -49,11 +49,13 @@ interface TestData {
 
 export default function TestPage() {
   const [match, params] = useRoute("/test/:variantId");
+  const [publicMatch, publicParams] = useRoute("/public-test/:variantId");
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
   const { syncStatus, saveDraftTest, saveCompletedTest, getOfflineTest } = useOfflineSync();
-  const variantId = params?.variantId;
+  const variantId = params?.variantId || publicParams?.variantId;
+  const isPublicTest = !!publicMatch;
 
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
@@ -80,7 +82,7 @@ export default function TestPage() {
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const { data: testData, isLoading } = useQuery<TestData>({
-    queryKey: ["/api/variants", variantId, "test"],
+    queryKey: [isPublicTest ? "/api/public/variants" : "/api/variants", variantId, "test"],
     enabled: !!variantId,
   });
 
@@ -354,7 +356,7 @@ export default function TestPage() {
     }
   }, [variantId, user?.id, getOfflineTest, toast]);
 
-  if (!match || !variantId) {
+  if ((!match && !publicMatch) || !variantId) {
     setLocation("/");
     return null;
   }

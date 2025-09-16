@@ -226,7 +226,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Test routes
+  // Test routes  
+  // Public test endpoint (no auth required for free variants)
+  app.get("/api/public/variants/:variantId/test", async (req, res) => {
+    try {
+      const variant = await storage.getVariant(req.params.variantId);
+      if (!variant) {
+        return res.status(404).json({ message: "Вариант не найден" });
+      }
+
+      // Check if this variant is free
+      if (!variant.isFree) {
+        return res.status(403).json({ message: "Доступ к этому тесту требует авторизации" });
+      }
+
+      // Get the block for this variant
+      const block = await storage.getBlock(variant.blockId);
+      if (!block) {
+        return res.status(404).json({ message: "Блок не найден" });
+      }
+
+      const subjects = await storage.getSubjectsByVariant(req.params.variantId);
+      const testData = [];
+
+      for (const subject of subjects) {
+        const questions = await storage.getQuestionsBySubject(subject.id);
+        const questionsWithAnswers = [];
+
+        for (const question of questions) {
+          const answers = await storage.getAnswersByQuestion(question.id);
+          // Filter out isCorrect field to prevent revealing correct answers to client
+          const safeAnswers = answers.map(answer => ({
+            id: answer.id,
+            text: answer.text,
+          }));
+          questionsWithAnswers.push({
+            ...question,
+            answers: safeAnswers,
+          });
+        }
+
+        testData.push({
+          subject,
+          questions: questionsWithAnswers,
+        });
+      }
+
+      res.json({
+        variant: { ...variant, block },
+        testData,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка получения теста" });
+    }
+  });
+
   app.get("/api/variants/:variantId/test", async (req, res) => {
     try {
       const variant = await storage.getVariant(req.params.variantId);

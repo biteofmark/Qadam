@@ -44,6 +44,7 @@ function Router() {
       {/* Public routes */}
       <Route path="/" component={PublicHomePage} />
       <Route path="/auth" component={AuthPage} />
+      <Route path="/public-test/:variantId" component={() => <TestPage />} />
       
       {/* Protected routes */}
       <ProtectedRoute path="/dashboard" component={() => <HomePage />} />

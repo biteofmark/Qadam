@@ -152,7 +152,7 @@ export default function PublicHomePage() {
                       )}
                     </div>
                     
-                    <Link href={`/test/${variant.id}?guest=true`}>
+                    <Link href={`/public-test/${variant.id}`}>
                       <Button 
                         className="w-full" 
                         data-testid={`button-start-test-${variant.id}`}

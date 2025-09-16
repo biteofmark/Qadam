@@ -390,6 +390,35 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(variants).where(eq(variants.blockId, blockId));
   }
 
+  async getFreeVariants(): Promise<(Variant & { block: Block })[]> {
+    const freeVariants = await db
+      .select({
+        id: variants.id,
+        blockId: variants.blockId,
+        name: variants.name,
+        isFree: variants.isFree,
+        block: {
+          id: blocks.id,
+          name: blocks.name,
+          hasCalculator: blocks.hasCalculator,
+          hasPeriodicTable: blocks.hasPeriodicTable,
+          requiresProctoring: blocks.requiresProctoring,
+        }
+      })
+      .from(variants)
+      .innerJoin(blocks, eq(variants.blockId, blocks.id))
+      .where(eq(variants.isFree, true))
+      .orderBy(blocks.name, variants.name);
+    
+    return freeVariants.map(row => ({
+      id: row.id,
+      blockId: row.blockId,
+      name: row.name,
+      isFree: row.isFree,
+      block: row.block
+    }));
+  }
+
   async getVariant(id: string): Promise<Variant | undefined> {
     const [variant] = await db.select().from(variants).where(eq(variants.id, id));
     return variant || undefined;

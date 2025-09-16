@@ -70,6 +70,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication
   setupAuth(app);
 
+  // Public routes (no authentication required)
+  app.get("/api/public/free-variants", async (req, res) => {
+    try {
+      const freeVariants = await storage.getFreeVariants();
+      res.json(freeVariants);
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка получения бесплатных вариантов" });
+    }
+  });
+
   // Blocks routes
   app.get("/api/blocks", async (req, res) => {
     try {

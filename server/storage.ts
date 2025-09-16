@@ -370,152 +370,161 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllBlocks(): Promise<Block[]> {
-    return Array.from(this.blocks.values());
+    return await db.select().from(blocks);
   }
 
   async getBlock(id: string): Promise<Block | undefined> {
-    return this.blocks.get(id);
+    const [block] = await db.select().from(blocks).where(eq(blocks.id, id));
+    return block || undefined;
   }
 
   async createBlock(insertBlock: InsertBlock): Promise<Block> {
-    const id = randomUUID();
-    const block: Block = { 
-      ...insertBlock, 
-      id, 
-      hasCalculator: insertBlock.hasCalculator ?? false, 
-      hasPeriodicTable: insertBlock.hasPeriodicTable ?? false 
-    };
-    this.blocks.set(id, block);
+    const [block] = await db
+      .insert(blocks)
+      .values({
+        ...insertBlock,
+        hasCalculator: insertBlock.hasCalculator ?? false,
+        hasPeriodicTable: insertBlock.hasPeriodicTable ?? false,
+        requiresProctoring: insertBlock.requiresProctoring ?? false
+      })
+      .returning();
     return block;
   }
 
   async updateBlock(id: string, updateData: Partial<InsertBlock>): Promise<Block | undefined> {
-    const existing = this.blocks.get(id);
-    if (!existing) return undefined;
-    
-    const updated = { ...existing, ...updateData };
-    this.blocks.set(id, updated);
-    return updated;
+    const [updated] = await db
+      .update(blocks)
+      .set(updateData)
+      .where(eq(blocks.id, id))
+      .returning();
+    return updated || undefined;
   }
 
   async deleteBlock(id: string): Promise<void> {
-    this.blocks.delete(id);
+    await db.delete(blocks).where(eq(blocks.id, id));
   }
 
   async getVariantsByBlock(blockId: string): Promise<Variant[]> {
-    return Array.from(this.variants.values()).filter(v => v.blockId === blockId);
+    return await db.select().from(variants).where(eq(variants.blockId, blockId));
   }
 
   async getVariant(id: string): Promise<Variant | undefined> {
-    return this.variants.get(id);
+    const [variant] = await db.select().from(variants).where(eq(variants.id, id));
+    return variant || undefined;
   }
 
   async createVariant(insertVariant: InsertVariant): Promise<Variant> {
-    const id = randomUUID();
-    const variant: Variant = { ...insertVariant, id };
-    this.variants.set(id, variant);
+    const [variant] = await db
+      .insert(variants)
+      .values(insertVariant)
+      .returning();
     return variant;
   }
 
   async updateVariant(id: string, updateData: Partial<InsertVariant>): Promise<Variant | undefined> {
-    const existing = this.variants.get(id);
-    if (!existing) return undefined;
-    
-    const updated = { ...existing, ...updateData };
-    this.variants.set(id, updated);
-    return updated;
+    const [updated] = await db
+      .update(variants)
+      .set(updateData)
+      .where(eq(variants.id, id))
+      .returning();
+    return updated || undefined;
   }
 
   async deleteVariant(id: string): Promise<void> {
-    this.variants.delete(id);
+    await db.delete(variants).where(eq(variants.id, id));
   }
 
   async getSubjectsByVariant(variantId: string): Promise<Subject[]> {
-    return Array.from(this.subjects.values()).filter(s => s.variantId === variantId);
+    return await db.select().from(subjects).where(eq(subjects.variantId, variantId));
   }
 
   async getSubject(id: string): Promise<Subject | undefined> {
-    return this.subjects.get(id);
+    const [subject] = await db.select().from(subjects).where(eq(subjects.id, id));
+    return subject || undefined;
   }
 
   async createSubject(insertSubject: InsertSubject): Promise<Subject> {
-    const id = randomUUID();
-    const subject: Subject = { ...insertSubject, id };
-    this.subjects.set(id, subject);
+    const [subject] = await db
+      .insert(subjects)
+      .values(insertSubject)
+      .returning();
     return subject;
   }
 
   async updateSubject(id: string, updateData: Partial<InsertSubject>): Promise<Subject | undefined> {
-    const existing = this.subjects.get(id);
-    if (!existing) return undefined;
-    
-    const updated = { ...existing, ...updateData };
-    this.subjects.set(id, updated);
-    return updated;
+    const [updated] = await db
+      .update(subjects)
+      .set(updateData)
+      .where(eq(subjects.id, id))
+      .returning();
+    return updated || undefined;
   }
 
   async deleteSubject(id: string): Promise<void> {
-    this.subjects.delete(id);
+    await db.delete(subjects).where(eq(subjects.id, id));
   }
 
   async getQuestionsBySubject(subjectId: string): Promise<Question[]> {
-    return Array.from(this.questions.values()).filter(q => q.subjectId === subjectId);
+    return await db.select().from(questions).where(eq(questions.subjectId, subjectId));
   }
 
   async getQuestion(id: string): Promise<Question | undefined> {
-    return this.questions.get(id);
+    const [question] = await db.select().from(questions).where(eq(questions.id, id));
+    return question || undefined;
   }
 
   async createQuestion(insertQuestion: InsertQuestion): Promise<Question> {
-    const id = randomUUID();
-    const question: Question = { ...insertQuestion, id };
-    this.questions.set(id, question);
+    const [question] = await db
+      .insert(questions)
+      .values(insertQuestion)
+      .returning();
     return question;
   }
 
   async updateQuestion(id: string, updateData: Partial<InsertQuestion>): Promise<Question | undefined> {
-    const existing = this.questions.get(id);
-    if (!existing) return undefined;
-    
-    const updated = { ...existing, ...updateData };
-    this.questions.set(id, updated);
-    return updated;
+    const [updated] = await db
+      .update(questions)
+      .set(updateData)
+      .where(eq(questions.id, id))
+      .returning();
+    return updated || undefined;
   }
 
   async deleteQuestion(id: string): Promise<void> {
-    this.questions.delete(id);
+    await db.delete(questions).where(eq(questions.id, id));
   }
 
   async getAnswersByQuestion(questionId: string): Promise<Answer[]> {
-    return Array.from(this.answers.values()).filter(a => a.questionId === questionId);
+    return await db.select().from(answers).where(eq(answers.questionId, questionId));
   }
 
   async getAnswer(id: string): Promise<Answer | undefined> {
-    return this.answers.get(id);
+    const [answer] = await db.select().from(answers).where(eq(answers.id, id));
+    return answer || undefined;
   }
 
   async createAnswer(insertAnswer: InsertAnswer): Promise<Answer> {
-    const id = randomUUID();
-    const answer: Answer = { 
-      ...insertAnswer, 
-      id, 
-      isCorrect: insertAnswer.isCorrect ?? false 
-    };
-    this.answers.set(id, answer);
+    const [answer] = await db
+      .insert(answers)
+      .values({
+        ...insertAnswer,
+        isCorrect: insertAnswer.isCorrect ?? false
+      })
+      .returning();
     return answer;
   }
 
   async updateAnswer(id: string, updateData: Partial<InsertAnswer>): Promise<Answer | undefined> {
-    const existing = this.answers.get(id);
-    if (!existing) return undefined;
-    
-    const updated = { ...existing, ...updateData };
-    this.answers.set(id, updated);
-    return updated;
+    const [updated] = await db
+      .update(answers)
+      .set(updateData)
+      .where(eq(answers.id, id))
+      .returning();
+    return updated || undefined;
   }
 
   async deleteAnswer(id: string): Promise<void> {
-    this.answers.delete(id);
+    await db.delete(answers).where(eq(answers.id, id));
   }
 
   async createTestResult(insertResult: InsertTestResult): Promise<TestResult> {
@@ -950,33 +959,33 @@ export class DatabaseStorage implements IStorage {
   }
 
   async markReminderAsSent(id: string): Promise<void> {
-    const reminder = this.reminders.get(id);
-    if (reminder) {
-      reminder.lastSentAt = new Date();
-      this.reminders.set(id, reminder);
-    }
+    await db
+      .update(reminders)
+      .set({ lastSentAt: new Date() })
+      .where(eq(reminders.id, id));
   }
 
   // Export Jobs methods
   async createExportJob(insertExportJob: InsertExportJob): Promise<ExportJob> {
-    const id = randomUUID();
     const now = new Date();
     const expiresAt = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // 24 hours from now
 
-    const exportJob: ExportJob = {
-      ...insertExportJob,
-      id,
-      createdAt: now,
-      completedAt: null,
-      expiresAt,
-    };
+    const [exportJob] = await db
+      .insert(exportJobs)
+      .values({
+        ...insertExportJob,
+        createdAt: now,
+        completedAt: null,
+        expiresAt,
+      })
+      .returning();
     
-    this.exportJobs.set(id, exportJob);
     return exportJob;
   }
 
   async getExportJob(id: string): Promise<ExportJob | undefined> {
-    return this.exportJobs.get(id);
+    const [job] = await db.select().from(exportJobs).where(eq(exportJobs.id, id));
+    return job || undefined;
   }
 
   async listExportJobsByUser(userId: string, limit = 10): Promise<ExportJob[]> {
@@ -987,12 +996,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateExportJob(id: string, update: Partial<ExportJob>): Promise<ExportJob | undefined> {
-    const job = this.exportJobs.get(id);
-    if (!job) return undefined;
-
-    const updatedJob = { ...job, ...update };
-    this.exportJobs.set(id, updatedJob);
-    return updatedJob;
+    const [updatedJob] = await db
+      .update(exportJobs)
+      .set(update)
+      .where(eq(exportJobs.id, id))
+      .returning();
+    return updatedJob || undefined;
   }
 
   async deleteExportJob(id: string, userId: string): Promise<void> {
@@ -1007,9 +1016,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPendingExportJobs(): Promise<ExportJob[]> {
-    return Array.from(this.exportJobs.values())
-      .filter(job => job.status === "PENDING")
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    return await db
+      .select()
+      .from(exportJobs)
+      .where(eq(exportJobs.status, "PENDING"))
+      .orderBy(asc(exportJobs.createdAt));
   }
 
   // File Cache methods

@@ -351,24 +351,6 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user || undefined;
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user || undefined;
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db
-      .insert(users)
-      .values(insertUser)
-      .returning();
-    return user;
-  }
-
   async getAllBlocks(): Promise<Block[]> {
     return await db.select().from(blocks);
   }
@@ -906,38 +888,35 @@ export class DatabaseStorage implements IStorage {
   }
 
   async markNotificationAsRead(id: string, userId: string): Promise<void> {
-    const notification = this.notifications.get(id);
-    if (notification && notification.userId === userId) {
-      notification.isRead = true;
-      notification.readAt = new Date();
-      this.notifications.set(id, notification);
-    }
+    await db
+      .update(notifications)
+      .set({ isRead: true, readAt: new Date() })
+      .where(and(eq(notifications.id, id), eq(notifications.userId, userId)));
   }
 
   async markAllNotificationsAsRead(userId: string): Promise<void> {
-    for (const [id, notification] of this.notifications.entries()) {
-      if (notification.userId === userId && !notification.isRead) {
-        notification.isRead = true;
-        notification.readAt = new Date();
-        this.notifications.set(id, notification);
-      }
-    }
+    await db
+      .update(notifications)
+      .set({ isRead: true, readAt: new Date() })
+      .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
   }
 
   async deleteNotification(id: string, userId: string): Promise<void> {
-    const notification = this.notifications.get(id);
-    if (notification && notification.userId === userId) {
-      this.notifications.delete(id);
-    }
+    await db
+      .delete(notifications)
+      .where(and(eq(notifications.id, id), eq(notifications.userId, userId)));
   }
 
   async countNotificationsByTypeSince(userId: string, type: NotificationType, since: Date): Promise<number> {
-    return Array.from(this.notifications.values())
-      .filter(n => 
-        n.userId === userId && 
-        n.type === type && 
-        new Date(n.createdAt) >= since
-      ).length;
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(notifications)
+      .where(and(
+        eq(notifications.userId, userId),
+        eq(notifications.type, type),
+        sql`${notifications.createdAt} >= ${since}`
+      ));
+    return count;
   }
 
   // Notification Settings methods

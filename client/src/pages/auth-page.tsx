@@ -13,7 +13,7 @@ export default function AuthPage() {
   const [, setLocation] = useLocation();
   const [isLogin, setIsLogin] = useState(true);
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
-  const [registerForm, setRegisterForm] = useState({ username: "", password: "", confirmPassword: "" });
+  const [registerForm, setRegisterForm] = useState({ username: "", email: "", password: "", confirmPassword: "" });
   const { toast } = useToast();
 
   // Redirect if already logged in
@@ -44,7 +44,7 @@ export default function AuthPage() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!registerForm.username || !registerForm.password || !registerForm.confirmPassword) {
+    if (!registerForm.username || !registerForm.email || !registerForm.password || !registerForm.confirmPassword) {
       toast({
         title: "Ошибка",
         description: "Заполните все поля",
@@ -80,8 +80,20 @@ export default function AuthPage() {
       return;
     }
 
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(registerForm.email)) {
+      toast({
+        title: "Ошибка",
+        description: "Введите корректный email адрес",
+        variant: "destructive",
+      });
+      return;
+    }
+
     registerMutation.mutate({
       username: registerForm.username,
+      email: registerForm.email,
       password: registerForm.password,
     }, {
       onSuccess: () => {
@@ -214,6 +226,17 @@ export default function AuthPage() {
                   <p className="text-xs text-muted-foreground">
                     Только буквы и цифры, от 5 до 20 символов
                   </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="register-email">Email</Label>
+                  <Input
+                    id="register-email"
+                    type="email"
+                    placeholder="user@example.com"
+                    value={registerForm.email}
+                    onChange={(e) => setRegisterForm(prev => ({ ...prev, email: e.target.value }))}
+                    data-testid="input-register-email"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="register-password">Пароль</Label>

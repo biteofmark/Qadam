@@ -221,7 +221,8 @@ export default function TestPage() {
       try {
         // Try online submission first
         if (syncStatus.isOnline) {
-          const res = await apiRequest("POST", "/api/test-results", {
+          const endpoint = isPublicTest ? "/api/public/test-results" : "/api/test-results";
+          const res = await apiRequest("POST", endpoint, {
             variantId,
             answers,
             timeSpent: (240 * 60) - timeLeft,
@@ -231,7 +232,12 @@ export default function TestPage() {
           throw new Error('Offline mode');
         }
       } catch (error) {
-        // Save for offline sync if online submission fails
+        // For public tests, don't save offline - just show error
+        if (isPublicTest) {
+          throw error;
+        }
+        
+        // Save for offline sync if online submission fails (only for authenticated users)
         const offlineResult = {
           id: `result-${variantId}-${user?.id}-${Date.now()}`,
           testId: `${variantId}-${user?.id}`,
@@ -258,17 +264,36 @@ export default function TestPage() {
           description: "Результаты будут синхронизированы при восстановлении связи",
         });
       } else {
+        const successMessage = result.isGuestResult 
+          ? "Результаты готовы! Зарегистрируйтесь для сохранения прогресса" 
+          : "Результаты успешно сохранены";
+          
         toast({
           title: "Тест завершен",
-          description: "Результаты успешно сохранены",
+          description: successMessage,
         });
-        queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+        
+        if (!result.isGuestResult) {
+          queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+        }
       }
       
       // Clean up offline data
       localStorage.removeItem(`test_${variantId}_answers`);
       
-      setLocation("/results", { state: { result, testData, userAnswers } });
+      // For guest results, show results directly, for authenticated users navigate to results page
+      if (result.isGuestResult) {
+        setLocation("/", { 
+          state: { 
+            guestResult: result,
+            testData, 
+            userAnswers,
+            showResults: true
+          } 
+        });
+      } else {
+        setLocation("/results", { state: { result, testData, userAnswers } });
+      }
     },
     onError: () => {
       toast({

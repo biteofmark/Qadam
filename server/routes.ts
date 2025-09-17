@@ -281,6 +281,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Public test results endpoint (no auth required for free variants)
+  app.post("/api/public/test-results", async (req, res) => {
+    try {
+      const { variantId, answers, timeSpent } = req.body;
+      
+      if (!variantId || !answers || timeSpent === undefined) {
+        return res.status(400).json({ message: "Недостаточно данных" });
+      }
+
+      // Verify this is a free variant
+      const variant = await storage.getVariant(variantId);
+      if (!variant || !variant.isFree) {
+        return res.status(403).json({ message: "Доступ к результатам этого теста требует авторизации" });
+      }
+
+      // Get all questions for this variant to calculate score
+      const subjects = await storage.getSubjectsByVariant(variantId);
+      let totalQuestions = 0;
+      let correctAnswers = 0;
+      
+      for (const subject of subjects) {
+        const questions = await storage.getQuestionsBySubject(subject.id);
+        for (const question of questions) {
+          totalQuestions++;
+          const questionAnswers = await storage.getAnswersByQuestion(question.id);
+          const userAnswerId = answers[question.id];
+          
+          if (userAnswerId) {
+            const selectedAnswer = questionAnswers.find(a => a.id === userAnswerId);
+            if (selectedAnswer?.isCorrect) {
+              correctAnswers++;
+            }
+          }
+        }
+      }
+      
+      const percentage = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+      
+      // Return results without saving to database (guest session)
+      const result = {
+        variantId,
+        score: correctAnswers,
+        totalQuestions,
+        percentage: Math.round(percentage * 100) / 100,
+        timeSpent,
+        isGuestResult: true
+      };
+
+      res.status(200).json(result);
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка обработки результата" });
+    }
+  });
+
   app.get("/api/variants/:variantId/test", async (req, res) => {
     try {
       const variant = await storage.getVariant(req.params.variantId);

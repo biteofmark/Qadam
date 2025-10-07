@@ -35,15 +35,16 @@ export default function NotificationsPage() {
   });
 
   // Query for unread count
-  const { data: unreadCount = 0 } = useQuery({
+  const { data: unreadCountRaw = 0 } = useQuery<number>({
     queryKey: ["/api/notifications/unread-count"],
     refetchInterval: 30000,
   });
+  const unreadCount = Number(unreadCountRaw || 0);
 
   // Mutation to mark notification as read
   const markAsReadMutation = useMutation({
     mutationFn: (notificationId: string) => 
-      apiRequest(`/api/notifications/${notificationId}/mark-read`, { method: "POST" }),
+      apiRequest("POST", `/api/notifications/${notificationId}/mark-read`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
@@ -53,7 +54,7 @@ export default function NotificationsPage() {
   // Mutation to mark all as read
   const markAllAsReadMutation = useMutation({
     mutationFn: () => 
-      apiRequest("/api/notifications/mark-all-read", { method: "POST" }),
+      apiRequest("POST", "/api/notifications/mark-all-read"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
@@ -64,7 +65,7 @@ export default function NotificationsPage() {
   // Mutation to delete notification
   const deleteNotificationMutation = useMutation({
     mutationFn: (notificationId: string) => 
-      apiRequest(`/api/notifications/${notificationId}`, { method: "DELETE" }),
+      apiRequest("DELETE", `/api/notifications/${notificationId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
@@ -80,8 +81,9 @@ export default function NotificationsPage() {
 
     // Handle navigation based on notification type and metadata
     if (notification.type === "TEST_COMPLETED" || notification.type === "TEST_REMINDER") {
-      if (notification.metadata?.variantId) {
-        setLocation(`/test/${notification.metadata.variantId}`);
+      const variantId = (notification.metadata && (notification.metadata as any).variantId) || null;
+      if (variantId) {
+        setLocation(`/test/${variantId}`);
       } else {
         setLocation("/");
       }
@@ -152,14 +154,14 @@ export default function NotificationsPage() {
     return notificationDate.toLocaleDateString();
   };
 
-  const notifications = notificationsData?.notifications || [];
-  const totalNotifications = notificationsData?.total || 0;
+  const notifications = (notificationsData && (notificationsData as any).notifications) || [];
+  const totalNotifications = (notificationsData && (notificationsData as any).total) || 0;
   const totalPages = Math.ceil(totalNotifications / pageSize);
 
   // Filter notifications by search query
-  const filteredNotifications = notifications.filter(notification =>
-    notification.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    notification.message.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredNotifications = notifications.filter((notification: Notification) =>
+    (notification.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (notification.message || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const NotificationSkeleton = () => (
@@ -315,7 +317,7 @@ export default function NotificationsPage() {
             </CardContent>
           </Card>
         ) : (
-          filteredNotifications.map((notification) => (
+          filteredNotifications.map((notification: Notification) => (
             <Card 
               key={notification.id} 
               className={`transition-all cursor-pointer hover:shadow-md ${
@@ -327,7 +329,7 @@ export default function NotificationsPage() {
               <CardContent className="p-4">
                 <div className="flex items-start space-x-3">
                   <div className="flex-shrink-0 mt-1">
-                    <i className={`${getNotificationIcon(notification.type)} text-lg`}></i>
+                    <i className={`${getNotificationIcon(notification.type as NotificationType)} text-lg`}></i>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-2">
@@ -340,8 +342,8 @@ export default function NotificationsPage() {
                         )}
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Badge variant={getTypeBadgeVariant(notification.type)}>
-                          {getTypeLabel(notification.type)}
+                        <Badge variant={getTypeBadgeVariant(notification.type as NotificationType)}>
+                          {getTypeLabel(notification.type as NotificationType)}
                         </Badge>
                         <Button
                           variant="ghost"
@@ -361,9 +363,9 @@ export default function NotificationsPage() {
                       {notification.message}
                     </p>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>{formatTimeAgo(notification.createdAt)}</span>
+                      <span>{formatTimeAgo(notification.createdAt || new Date())}</span>
                       {notification.readAt && (
-                        <span>Прочитано {formatTimeAgo(notification.readAt)}</span>
+                        <span>Прочитано {formatTimeAgo(notification.readAt || new Date())}</span>
                       )}
                     </div>
                   </div>

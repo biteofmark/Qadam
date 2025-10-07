@@ -41,18 +41,18 @@ export class VideoUploadRateLimiter {
     const now = Date.now();
     
     // Cleanup IP limits
-    for (const [ip, entry] of this.ipLimits.entries()) {
+    Array.from(this.ipLimits.entries()).forEach(([ip, entry]) => {
       if (now - entry.windowStart > this.limits.ip.windowMs) {
         this.ipLimits.delete(ip);
       }
-    }
-    
+    });
+
     // Cleanup user limits
-    for (const [userId, entry] of this.userLimits.entries()) {
+    Array.from(this.userLimits.entries()).forEach(([userId, entry]) => {
       if (now - entry.windowStart > this.limits.user.windowMs) {
         this.userLimits.delete(userId);
       }
-    }
+    });
   }
 
   private getClientIP(req: Request): string {

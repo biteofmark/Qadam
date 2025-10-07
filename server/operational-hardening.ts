@@ -96,13 +96,7 @@ export class OperationalHardening {
       console.error('[STARTUP] ❌ Object storage validation failed:', error);
     }
 
-    // 4. Video upload limits configuration
-    console.log('[STARTUP] Validating video upload rate limiting...');
-    if (!videoUploadRateLimiter) {
-      errors.push('Video upload rate limiter not initialized');
-    } else {
-      console.log('[STARTUP] ✅ Video upload rate limiting configured');
-    }
+    // 4. Video upload limits configuration removed (proctoring disabled)
 
     // Summary
     if (errors.length === 0) {
@@ -280,7 +274,7 @@ export class OperationalHardening {
       timestamp: new Date().toISOString(),
       level,
       event,
-      service: 'video-proctoring-system',
+      service: 'eproject-backend',
       version: '1.0.0',
       ...details
     };

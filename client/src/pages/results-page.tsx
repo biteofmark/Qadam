@@ -334,6 +334,41 @@ export default function ResultsPage() {
               <i className="fas fa-home mr-2"></i>
               На главную
             </Button>
+            {(
+              (testData && userAnswers) || testResult
+            ) && (
+              <Button
+                variant="ghost"
+                onClick={async () => {
+                  try {
+                    // If we already have testData and userAnswers (navigation state), use them
+                    if (testData && userAnswers) {
+                      const variantId = (testResult as any).variantId || (testData.variant && (testData.variant as any).id);
+                      if (variantId) setLocation(`/test/${variantId}`, { state: { review: true, testData, userAnswers } });
+                      return;
+                    }
+
+                    // Otherwise fetch review data from API using testResult id
+                    const res = await fetch(`/api/test-results/${(testResult as any).id}/review`, { credentials: 'include' });
+                    if (!res.ok) throw new Error('Fail');
+                    const payload = await res.json();
+                    const variantId = payload.result?.variantId || payload.variant?.id;
+                    if (variantId) {
+                      setLocation(`/test/${variantId}`, { state: { review: true, testData: payload.testData, userAnswers: payload.userAnswers } });
+                    }
+                  } catch (e) {
+                    // fallback: notify and do nothing
+                    console.error('Failed to load review data', e);
+                    alert('Не удалось загрузить данные для просмотра теста');
+                  }
+                }}
+                className="flex-1 sm:flex-none"
+                data-testid="button-review-test"
+              >
+                <i className="fas fa-eye mr-2"></i>
+                Посмотреть тест
+              </Button>
+            )}
           </div>
         </div>
       </main>

@@ -7,10 +7,26 @@ import { ExcelService } from "./services/excel.service";
 import { randomUUID } from "crypto";
 // CRITICAL #5: Operational Hardening - Import startup validation
 import { operationalHardening } from "./operational-hardening";
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import { createServer } from 'http';
+import { WebSocketServer } from 'ws';
+import cors from 'cors';
+
+declare module 'cors';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+app.use(cors({
+  origin: 'http://localhost:3000', // Указать адрес фронтенда
+  credentials: true, // Разрешить отправку куки
+}));
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -170,10 +186,20 @@ async function processExportJobs() {
         let fileName: string;
         
         if (job.format === "PDF") {
-          fileBuffer = await PDFService.generateReport(job.userId, job.type as "TEST_REPORT" | "USER_ANALYTICS" | "RANKINGS" | "PERIOD_SUMMARY", job.format, job.options || {});
+          fileBuffer = await PDFService.generateReport(
+            job.userId,
+            job.type as "TEST_REPORT" | "USER_ANALYTICS" | "RANKINGS" | "PERIOD_SUMMARY",
+            job.format,
+            { includeCharts: true, ...(job.options || {}) }
+          );
           fileName = `${job.type.toLowerCase()}_${new Date().toISOString().split('T')[0]}.pdf`;
         } else if (job.format === "EXCEL") {
-          fileBuffer = await ExcelService.generateReport(job.userId, job.type as "TEST_REPORT" | "USER_ANALYTICS" | "RANKINGS" | "PERIOD_SUMMARY", job.format, job.options || {});
+          fileBuffer = await ExcelService.generateReport(
+            job.userId,
+            job.type as "TEST_REPORT" | "USER_ANALYTICS" | "RANKINGS" | "PERIOD_SUMMARY",
+            job.format,
+            { includeCharts: true, ...(job.options || {}) }
+          );
           fileName = `${job.type.toLowerCase()}_${new Date().toISOString().split('T')[0]}.xlsx`;
         } else {
           throw new Error(`Неподдерживаемый формат: ${job.format}`);
@@ -274,8 +300,8 @@ async function cleanupExpiredFiles() {
 
 (async () => {
   try {
-    // CRITICAL #5: Operational Hardening - Startup validation
-    console.log('[STARTUP] Initializing video proctoring system...');
+  // CRITICAL #5: Operational Hardening - Startup validation
+  console.log('[STARTUP] Performing startup validation checks...');
     
     const validation = await operationalHardening.validateStartupRequirements();
     if (!validation.success) {
@@ -318,48 +344,20 @@ async function cleanupExpiredFiles() {
     serveStatic(app);
   }
 
+  // Serve static files from the frontend build directory
+  const frontendPath = path.resolve(__dirname, '../client/dist');
+  app.use(express.static(frontendPath));
+
+  // Fallback to index.html for SPA routing
+  app.get('*', (req, res) => {
+    res.sendFile(path.resolve(frontendPath, 'index.html'));
+  });
+
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
-    
-    // CRITICAL #5: Operational Hardening - Log successful startup
-    operationalHardening.logStructured('SYSTEM_STARTUP_COMPLETE', {
-      port,
-      environment: process.env.NODE_ENV || 'development',
-      nodeVersion: process.version,
-      platform: process.platform
-    });
-    
-    // Start the reminder scheduler (runs every 60 seconds)
-    setInterval(processReminders, 60 * 1000);
-    log("Reminder scheduler started");
-    
-    // Start the export job processor (runs every 30 seconds)
-    setInterval(processExportJobs, 30 * 1000);
-    log("Export job processor started");
-    
-    // Start the cleanup job (runs every 15 minutes)
-    setInterval(cleanupExpiredFiles, 15 * 60 * 1000);
-    log("File cleanup scheduler started");
-    
-    // CRITICAL #5: Operational Hardening - Perform initial health check
-    setTimeout(async () => {
-      try {
-        const health = await operationalHardening.performHealthCheck();
-        console.log(`[STARTUP] Initial health check completed: ${health.status}`);
-      } catch (error) {
-        console.error('[STARTUP] Initial health check failed:', error);
-      }
-    }, 5000); // Wait 5 seconds after startup
-  });
   
   } catch (error) {
     console.error('[STARTUP] ❌ Critical error during server initialization:', error);
@@ -370,3 +368,58 @@ async function cleanupExpiredFiles() {
     process.exit(1);
   }
 })();
+
+// Create HTTP server
+const httpServer = createServer(app);
+
+// Create WebSocket server
+const wss = new WebSocketServer({ server: httpServer });
+
+wss.on('connection', (ws) => {
+  console.log('WebSocket connection established');
+
+  ws.on('message', (message) => {
+    console.log('Received:', message);
+    ws.send(`Echo: ${message}`);
+  });
+
+  ws.on('close', () => {
+    console.log('WebSocket connection closed');
+  });
+});
+
+// Start the HTTP server (for websockets)
+const httpPort = parseInt(process.env.PORT || '5000', 10);
+httpServer.listen(httpPort, '0.0.0.0', () => {
+  console.log(`Server is running on http://0.0.0.0:${httpPort}`);
+
+  // CRITICAL #5: Operational Hardening - Log successful startup
+  operationalHardening.logStructured('SYSTEM_STARTUP_COMPLETE', {
+    port: httpPort,
+    environment: process.env.NODE_ENV || 'development',
+    nodeVersion: process.version,
+    platform: process.platform
+  });
+
+  // Start the reminder scheduler (runs every 60 seconds)
+  setInterval(processReminders, 60 * 1000);
+  log("Reminder scheduler started");
+
+  // Start the export job processor (runs every 30 seconds)
+  setInterval(processExportJobs, 30 * 1000);
+  log("Export job processor started");
+
+  // Start the cleanup job (runs every 15 minutes)
+  setInterval(cleanupExpiredFiles, 15 * 60 * 1000);
+  log("File cleanup scheduler started");
+
+  // CRITICAL #5: Operational Hardening - Perform initial health check
+  setTimeout(async () => {
+    try {
+      const health = await operationalHardening.performHealthCheck();
+      console.log(`[STARTUP] Initial health check completed: ${health.status}`);
+    } catch (error) {
+      console.error('[STARTUP] Initial health check failed:', error);
+    }
+  }, 5000); // Wait 5 seconds after startup
+});

@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: eproject-web
+    env: node
+    repo: marktrost/EProject
+    branch: main
+    buildCommand: "npm ci && npm run build"
+    startCommand: "npm run start"
+    plan: free
+    # health check path - Render will use this to determine service readiness
+    healthCheckPath: /
+    # Do NOT store secrets here. Add sensitive values in Render dashboard (Environment -> Secrets).
+    # Example envVars (set these in Render UI as secrets or environment variables):
+    # envVars:
+    #   - key: NODE_ENV
+    #     value: production
+    #   - key: DATABASE_URL
+    #     value: <your-database-url>
+    #   - key: SESSION_SECRET
+    #     value: <your-session-secret>

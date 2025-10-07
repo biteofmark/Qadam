@@ -40,11 +40,7 @@ export default function ProfilePage() {
   // Mutation to update notification settings
   const updateSettingsMutation = useMutation({
     mutationFn: (settings: Partial<InsertNotificationSettings>) => 
-      apiRequest("/api/notification-settings", { 
-        method: "PUT", 
-        body: JSON.stringify(settings),
-        headers: { "Content-Type": "application/json" }
-      }),
+      apiRequest("PUT", "/api/notification-settings", settings),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notification-settings"] });
       toast({ title: "Настройки уведомлений сохранены" });

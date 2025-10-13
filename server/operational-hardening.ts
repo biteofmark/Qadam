@@ -46,7 +46,11 @@ export class OperationalHardening {
 
     // 2. Required environment variables
     const requiredEnvVars = [
-      'DATABASE_URL',
+      'DATABASE_URL'
+    ];
+    
+    // Optional environment variables for file storage
+    const optionalEnvVars = [
       'PUBLIC_OBJECT_SEARCH_PATHS', 
       'PRIVATE_OBJECT_DIR'
     ];
@@ -61,39 +65,54 @@ export class OperationalHardening {
       }
     }
 
-    // 3. Object storage configuration validation
+    console.log('[STARTUP] Checking optional environment variables...');
+    for (const envVar of optionalEnvVars) {
+      if (!process.env[envVar]) {
+        console.log(`[STARTUP] ⚠️ Optional env var not set: ${envVar} (file storage disabled)`);
+      } else {
+        console.log(`[STARTUP] ✅ Optional environment variable verified: ${envVar}`);
+      }
+    }
+
+    // 3. Object storage configuration validation (optional)
     try {
       console.log('[STARTUP] Validating object storage configuration...');
-      const objectStorageService = new ObjectStorageService();
       
-      const publicPaths = objectStorageService.getPublicObjectSearchPaths();
-      if (publicPaths.length === 0) {
-        errors.push('No public object search paths configured');
-      } else {
-        console.log(`[STARTUP] ✅ Public search paths configured: ${publicPaths.length} paths`);
-      }
-
-      const privateDir = objectStorageService.getPrivateObjectDir();
-      if (!privateDir) {
-        errors.push('Private object directory not configured');
-      } else {
-        console.log(`[STARTUP] ✅ Private object directory configured: ${privateDir}`);
-      }
-
-      // Validate object storage bucket paths format
-      for (const path of publicPaths) {
-        if (!path.startsWith('/')) {
-          errors.push(`Invalid public path format (must start with '/'): ${path}`);
+      // Only validate if storage environment variables are set
+      if (process.env.PUBLIC_OBJECT_SEARCH_PATHS && process.env.PRIVATE_OBJECT_DIR) {
+        const objectStorageService = new ObjectStorageService();
+        
+        const publicPaths = objectStorageService.getPublicObjectSearchPaths();
+        if (publicPaths.length === 0) {
+          errors.push('No public object search paths configured');
+        } else {
+          console.log(`[STARTUP] ✅ Public search paths configured: ${publicPaths.length} paths`);
         }
-      }
 
-      if (!privateDir.startsWith('/')) {
-        errors.push(`Invalid private directory format (must start with '/'): ${privateDir}`);
+        const privateDir = objectStorageService.getPrivateObjectDir();
+        if (!privateDir) {
+          errors.push('Private object directory not configured');
+        } else {
+          console.log(`[STARTUP] ✅ Private object directory configured: ${privateDir}`);
+        }
+
+        // Validate object storage bucket paths format
+        for (const path of publicPaths) {
+          if (!path.startsWith('/')) {
+            errors.push(`Invalid public path format (must start with '/'): ${path}`);
+          }
+        }
+
+        if (!privateDir.startsWith('/')) {
+          errors.push(`Invalid private directory format (must start with '/'): ${privateDir}`);
+        }
+      } else {
+        console.log('[STARTUP] ⚠️ Object storage not configured (file uploads disabled)');
       }
 
     } catch (error) {
-      errors.push(`Object storage validation failed: ${error}`);
-      console.error('[STARTUP] ❌ Object storage validation failed:', error);
+      // Only log error, don't fail startup if storage is not configured
+      console.log(`[STARTUP] ⚠️ Object storage validation skipped: ${error}`);
     }
 
     // 4. Video upload limits configuration removed (proctoring disabled)

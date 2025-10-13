@@ -2,7 +2,7 @@ services:
   - type: web
     name: eproject-app
     env: node
-    buildCommand: npm ci && npm run build
+    buildCommand: npm install && npm run build
     startCommand: npm start
     plan: free
     healthCheckPath: /health

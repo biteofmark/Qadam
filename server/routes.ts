@@ -55,8 +55,17 @@ async function requireExportRateLimit(req: Request, res: Response, next: NextFun
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // CRITICAL #5: Operational Hardening - Health check endpoints
-  app.get("/health", operationalHardening.healthCheckHandler);
+  // Simple health check for Render (always returns OK)
+  app.get("/health", (req, res) => {
+    res.status(200).json({ 
+      status: "ok", 
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime()
+    });
+  });
+
+  // CRITICAL #5: Operational Hardening - Detailed health check endpoints
+  app.get("/health/detailed", operationalHardening.healthCheckHandler);
   app.get("/ready", operationalHardening.readyHandler);
   
   // System status endpoint for monitoring

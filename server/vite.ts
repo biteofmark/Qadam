@@ -68,7 +68,8 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(import.meta.dirname, "public");
+  // In production, static files are copied to server/public by our build script
+  const distPath = path.resolve(process.cwd(), "server", "public");
 
   if (!fs.existsSync(distPath)) {
     throw new Error(

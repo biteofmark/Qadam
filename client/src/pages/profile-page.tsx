@@ -31,20 +31,58 @@ export default function ProfilePage() {
     enabled: !!user,
   });
 
+  // Fetch rankings to calculate user position
+  const { data: rankingsData } = useQuery<any[]>({
+    queryKey: ["/api/rankings"],
+    enabled: !!user && !!profileData,
+  });
+
   // Query for notification settings
   const { data: notificationSettings, isLoading: settingsLoading } = useQuery<NotificationSettings>({
     queryKey: ["/api/notification-settings"],
     enabled: !!user,
   });
 
+  // Calculate user's position in ranking
+  const getUserRankingPosition = () => {
+    if (!profileData?.ranking || !rankingsData) return "Пройдите тест";
+    
+    const userTotalScore = profileData.ranking.totalScore;
+    if (!userTotalScore) return "Пройдите тест";
+    
+    // Sort rankings by totalScore descending and find user position
+    const sortedRankings = rankingsData
+      .filter(r => r.totalScore > 0)
+      .sort((a, b) => b.totalScore - a.totalScore);
+    
+    const position = sortedRankings.findIndex(r => r.userId === user?.id) + 1;
+    return position > 0 ? `#${position}` : "Не в топе";
+  };
+
+  // Calculate total time spent on tests
+  const getTotalStudyTime = () => {
+    if (!profileData?.testResults?.length) return "0м";
+    
+    // timeSpent is stored in seconds, convert to minutes and sum up
+    const totalMinutes = profileData.testResults.reduce((total, result) => {
+      // Convert seconds to minutes and round up (minimum 1 minute per test)
+      const testMinutes = Math.max(1, Math.ceil((result.timeSpent || 0) / 60));
+      return total + testMinutes;
+    }, 0);
+    
+    if (totalMinutes >= 60) {
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      return minutes > 0 ? `${hours}ч ${minutes}м` : `${hours}ч`;
+    } else {
+      return `${totalMinutes}м`;
+    }
+  };
+
   // Mutation to update notification settings
   const updateSettingsMutation = useMutation({
     mutationFn: (settings: Partial<InsertNotificationSettings>) => 
-      apiRequest("/api/notification-settings", { 
-        method: "PUT", 
-        body: JSON.stringify(settings),
-        headers: { "Content-Type": "application/json" }
-      }),
+      apiRequest("PUT", "/api/notification-settings", settings),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notification-settings"] });
       toast({ title: "Настройки уведомлений сохранены" });
@@ -81,7 +119,8 @@ export default function ProfilePage() {
     testsCompleted: profileData?.testResults?.length || 0,
     averageScore: profileData?.ranking?.averagePercentage?.toFixed(1) || "0.0",
     totalScore: profileData?.ranking?.totalScore || 0,
-    ranking: "#24", // Would calculate actual ranking
+    ranking: getUserRankingPosition(),
+    studyTime: getTotalStudyTime(),
   };
 
   return (
@@ -103,24 +142,73 @@ export default function ProfilePage() {
                   <p className="text-muted-foreground mb-4">
                     Участник с {new Date(user?.createdAt || Date.now()).toLocaleDateString()}
                   </p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="text-center">
-                      <div className="text-xl font-bold text-foreground">{stats.testsCompleted}</div>
-                      <div className="text-xs text-muted-foreground">Тестов пройдено</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xl font-bold text-foreground">{stats.averageScore}%</div>
-                      <div className="text-xs text-muted-foreground">Средний балл</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xl font-bold text-foreground">{stats.totalScore}</div>
-                      <div className="text-xs text-muted-foreground">Общий счет</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xl font-bold text-foreground">{stats.ranking}</div>
-                      <div className="text-xs text-muted-foreground">Место</div>
-                    </div>
+                  <div className="flex items-center space-x-4">
+                    <Badge variant="secondary" className="px-3 py-1">
+                      Общий счет: {stats.totalScore}
+                    </Badge>
+                    <Badge variant="outline" className="px-3 py-1">
+                      {stats.ranking}
+                    </Badge>
                   </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Stats Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Пройдено тестов</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.testsCompleted}</p>
+                </div>
+                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <i className="fas fa-check-circle text-primary"></i>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Средний балл</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.averageScore}%</p>
+                </div>
+                <div className="h-12 w-12 rounded-full bg-accent/10 flex items-center justify-center">
+                  <i className="fas fa-chart-line text-accent"></i>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Место в рейтинге</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.ranking}</p>
+                </div>
+                <div className="h-12 w-12 rounded-full bg-blue-800/10 flex items-center justify-center">
+                  <i className="fas fa-trophy text-blue-800"></i>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Время изучения</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.studyTime}</p>
+                </div>
+                <div className="h-12 w-12 rounded-full bg-blue-800/10 flex items-center justify-center">
+                  <i className="fas fa-clock text-blue-800"></i>
                 </div>
               </div>
             </CardContent>

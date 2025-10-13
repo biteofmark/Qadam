@@ -40,7 +40,7 @@ export default function Header() {
   const MobileNav = () => (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="md:hidden" data-testid="button-mobile-menu">
+        <Button variant="ghost" size="icon" className="md:hidden text-white hover:bg-white/10" data-testid="button-mobile-menu">
           <i className="fas fa-bars"></i>
         </Button>
       </SheetTrigger>
@@ -85,7 +85,7 @@ export default function Header() {
   );
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
+    <header className="sticky top-0 z-50 w-full border-b border-blue-300 bg-blue-800 backdrop-blur supports-[backdrop-filter]:bg-blue-800/95 shadow-lg">
       <div className="container mx-auto px-4 lg:px-6">
         <div className="flex h-16 items-center justify-between">
           {/* Logo and Brand */}
@@ -96,10 +96,10 @@ export default function Header() {
               onClick={() => setLocation("/")}
               data-testid="brand-logo"
             >
-              <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-                <i className="fas fa-graduation-cap text-primary-foreground"></i>
+              <div className="h-8 w-8 rounded-lg bg-white/20 flex items-center justify-center">
+                <i className="fas fa-graduation-cap text-white"></i>
               </div>
-              <span className="text-xl font-bold text-foreground">ProjectEnt</span>
+              <span className="text-xl font-bold text-white">ProjectEnt</span>
             </Button>
           </div>
           
@@ -113,8 +113,8 @@ export default function Header() {
                   variant="ghost"
                   className={`text-sm font-medium transition-colors ${
                     isActive(item.href) 
-                      ? "text-foreground bg-accent" 
-                      : "text-muted-foreground hover:text-primary"
+                      ? "text-white bg-white/20" 
+                      : "text-blue-100 hover:text-white hover:bg-white/10"
                   }`}
                   onClick={() => setLocation(item.href)}
                   data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
@@ -132,7 +132,7 @@ export default function Header() {
               variant="ghost" 
               size="icon"
               onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-              className="hidden md:inline-flex"
+              className="hidden md:inline-flex text-blue-100 hover:text-white hover:bg-white/10"
               data-testid="button-theme-toggle"
             >
               <i className={`fas ${theme === "light" ? "fa-moon" : "fa-sun"}`}></i>
@@ -147,14 +147,14 @@ export default function Header() {
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center space-x-2" data-testid="button-user-menu">
+                  <Button variant="ghost" className="flex items-center space-x-2 text-white hover:bg-white/10" data-testid="button-user-menu">
                     <Avatar className="h-8 w-8">
-                      <AvatarFallback className="bg-primary text-primary-foreground text-sm font-medium">
+                      <AvatarFallback className="bg-white/20 text-white text-sm font-medium">
                         {user.username.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="hidden md:block font-medium">{user.username}</span>
-                    <i className="fas fa-chevron-down text-xs"></i>
+                    <span className="hidden md:block font-medium text-white">{user.username}</span>
+                    <i className="fas fa-chevron-down text-xs text-blue-100"></i>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
@@ -196,7 +196,7 @@ export default function Header() {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button onClick={() => setLocation("/auth")} data-testid="button-login">
+              <Button onClick={() => setLocation("/auth")} className="bg-white text-blue-800 hover:bg-blue-50" data-testid="button-login">
                 Войти
               </Button>
             )}

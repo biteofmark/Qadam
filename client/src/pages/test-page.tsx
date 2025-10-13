@@ -2,20 +2,15 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import Header from "@/components/layout/header";
+// Header intentionally not rendered on test page to avoid navigation during a running test
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import TestTimer from "@/components/test-timer";
 import Calculator from "@/components/calculator";
 import PeriodicTable from "@/components/periodic-table";
-import MobileTestNavigation from "@/components/mobile-test-navigation";
-import CameraPreview from "@/components/proctoring/CameraPreview";
-import RecordingStatus from "@/components/proctoring/RecordingStatus";
-import PermissionDialog from "@/components/proctoring/PermissionDialog";
-import { VideoRecordingService } from "@/lib/video-recording-service";
+// Proctoring removed
 import { queryClient } from "@/lib/queryClient";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -23,7 +18,6 @@ import { useOfflineSync } from "@/hooks/use-offline-sync";
 import NetworkStatus from "@/components/network-status";
 import type { Variant, Block } from "@shared/schema";
 import type { ActiveTest } from "@/lib/offline-db";
-import type { VideoSegment, RecordingMetadata } from "@/lib/video-recording-service";
 
 interface TestQuestion {
   id: string;
@@ -65,158 +59,88 @@ export default function TestPage() {
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [testStartTime] = useState(Date.now());
 
-  // Video proctoring states
-  const [showPermissionDialog, setShowPermissionDialog] = useState(false);
-  const [permissionStatus, setPermissionStatus] = useState<"pending" | "granted" | "denied" | "error">("pending");
-  const [isRecording, setIsRecording] = useState(false);
-  const [cameraPreviewMinimized, setCameraPreviewMinimized] = useState(false);
-  const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
-  const [uploadProgress, setUploadProgress] = useState({
-    uploaded: 0,
-    total: 0,
-    pending: 0,
-    failed: 0,
-  });
-  const [recordingDuration, setRecordingDuration] = useState(0);
-  const videoRecordingServiceRef = useRef<VideoRecordingService | null>(null);
-  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Small helper: Timer display component
+  function TimerDisplay({ seconds }: { seconds: number }) {
+    const mm = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const ss = (seconds % 60).toString().padStart(2, '0');
+    const isUrgent = seconds <= 30 * 60; // <=30 minutes
+    return (
+      <div className={`text-2xl font-mono ${isUrgent ? 'text-red-600' : 'text-black'}`}>
+        {mm}:{ss}
+      </div>
+    );
+  }
+
+  // Small helper: numeric pagination (simple)
+  function Pagination({ total, current, onChange }: { total: number; current: number; onChange: (i: number) => void }) {
+    const windowSize = 7; // number of page buttons to show in pager window
+    if (total <= 1) return null;
+
+    const half = Math.floor(windowSize / 2);
+    let start = Math.max(0, current - half);
+    let end = Math.min(total, start + windowSize);
+    if (end - start < windowSize) {
+      start = Math.max(0, end - windowSize);
+    }
+
+    const pages: number[] = [];
+    for (let i = start; i < end; i++) pages.push(i);
+
+    const showLeftEllipsis = start > 1;
+    const showRightEllipsis = end < total - 1;
+
+    return (
+      <div className="flex items-center gap-2">
+        {/* first page if not in window */}
+        {start > 0 && (
+          <button onClick={() => onChange(0)} className={`px-2 py-1 rounded ${0 === current ? 'bg-accent text-white' : 'bg-transparent border'}`}>1</button>
+        )}
+        {showLeftEllipsis && <span className="px-2">...</span>}
+        {pages.map(p => (
+          <button
+            key={p}
+            onClick={() => onChange(p)}
+            className={`px-2 py-1 rounded ${p === current ? 'bg-accent text-white' : 'bg-transparent border'}`}
+          >{p+1}</button>
+        ))}
+        {showRightEllipsis && <span className="px-2">...</span>}
+        {end < total && (
+          <button onClick={() => onChange(total - 1)} className={`px-2 py-1 rounded ${total - 1 === current ? 'bg-accent text-white' : 'bg-transparent border'}`}>{total}</button>
+        )}
+      </div>
+    );
+  }
+
+  // Timer ticking effect: decrement timeLeft every second
+  useEffect(() => {
+    const t = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(t);
+          // call time up handler on next tick
+          handleTimeUp();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // pagination window size intentionally unified across devices
+
+  // Proctoring removed
 
   const { data: testData, isLoading } = useQuery<TestData>({
     queryKey: [isPublicTest ? "/api/public/variants" : "/api/variants", variantId, "test"],
     enabled: !!variantId,
   });
 
-  // Initialize video proctoring if required
-  useEffect(() => {
-    if (testData?.variant?.block?.requiresProctoring && user?.id && variantId) {
-      setShowPermissionDialog(true);
-      
-      // Initialize video recording service
-      const testSessionId = `${variantId}-${user.id}-${testStartTime}`;
-      videoRecordingServiceRef.current = new VideoRecordingService({
-        userId: user.id,
-        testSessionId,
-        variantId,
-        chunkDurationMs: 2 * 60 * 1000, // 2 minutes chunks
-        videoBitsPerSecond: 1000000, // 1Mbps
-        audioBitsPerSecond: 128000   // 128kbps
-      });
-
-      // Set up callbacks
-      videoRecordingServiceRef.current.setCallbacks({
-        onSegmentReady: (segment: VideoSegment) => {
-          setUploadProgress(prev => ({
-            ...prev,
-            total: prev.total + 1,
-            pending: prev.pending + 1
-          }));
-        },
-        onUploadProgress: (progress: UploadProgress) => {
-          setUploadProgress(progress);
-        },
-        onRecordingStatusChange: (recording: boolean) => {
-          setIsRecording(recording);
-        },
-        onError: (error: string) => {
-          toast({
-            title: "Ошибка видео-прокторинга",
-            description: error,
-            variant: "destructive",
-          });
-        }
-      });
-    }
-  }, [testData, user, variantId, testStartTime, toast]);
-
-  // Update recording duration timer
-  useEffect(() => {
-    if (isRecording) {
-      recordingTimerRef.current = setInterval(() => {
-        setRecordingDuration(prev => prev + 1000);
-      }, 1000);
-    } else {
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
-    }
-
-    return () => {
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-      }
-    };
-  }, [isRecording]);
-
-  // Video proctoring handlers
-  const handlePermissionGranted = async () => {
-    if (!videoRecordingServiceRef.current) return;
-
-    try {
-      const hasPermission = await videoRecordingServiceRef.current.requestCameraPermission();
-      if (hasPermission) {
-        setPermissionStatus("granted");
-        setVideoStream(videoRecordingServiceRef.current.getVideoStream());
-        setShowPermissionDialog(false);
-
-        // Start recording automatically
-        const started = await videoRecordingServiceRef.current.startRecording();
-        if (!started) {
-          toast({
-            title: "Ошибка",
-            description: "Не удалось начать запись видео",
-            variant: "destructive",
-          });
-        }
-      } else {
-        setPermissionStatus("denied");
-      }
-    } catch (error) {
-      console.error('Permission grant failed:', error);
-      setPermissionStatus("error");
-    }
-  };
-
-  const handlePermissionDenied = () => {
-    setPermissionStatus("denied");
-    toast({
-      title: "Видео-прокторинг обязателен",
-      description: "Для прохождения данного теста необходим доступ к камере",
-      variant: "destructive",
-    });
-  };
-
-  const handleRetryUploads = () => {
-    // This would retry failed video segment uploads
-    toast({
-      title: "Повторная загрузка",
-      description: "Попытка повторной загрузки неудачных сегментов...",
-    });
-  };
-
-  // Cleanup video recording on unmount
-  useEffect(() => {
-    return () => {
-      if (videoRecordingServiceRef.current) {
-        videoRecordingServiceRef.current.cleanup();
-      }
-    };
-  }, []);
+  // Proctoring removed
 
   const submitTestMutation = useMutation({
     mutationFn: async (answers: Record<string, string>) => {
-      // Stop video recording if it's active
-      if (videoRecordingServiceRef.current && isRecording) {
-        try {
-          await videoRecordingServiceRef.current.stopRecording();
-          toast({
-            title: "Видео запись завершена",
-            description: "Завершаем обработку видео записи...",
-          });
-        } catch (error) {
-          console.error('Failed to stop video recording:', error);
-        }
-      }
+  // Proctoring removed: no action needed here.
 
       try {
         // Try online submission first
@@ -283,16 +207,20 @@ export default function TestPage() {
       
       // For guest results, show results directly, for authenticated users navigate to results page
       if (result.isGuestResult) {
-        setLocation("/", { 
-          state: { 
-            guestResult: result,
-            testData, 
-            userAnswers,
-            showResults: true
-          } 
-        });
+        setTimeout(() => {
+          setLocation("/", { 
+            state: { 
+              guestResult: result,
+              testData, 
+              userAnswers,
+              showResults: true
+            } 
+          });
+        }, 0);
       } else {
-        setLocation("/results", { state: { result, testData, userAnswers } });
+        setTimeout(() => {
+          setLocation("/results", { state: { result, testData, userAnswers } });
+        }, 0);
       }
     },
     onError: () => {
@@ -391,7 +319,6 @@ export default function TestPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <main className="container mx-auto px-4 lg:px-6 py-8">
           <div className="space-y-6">
             <Skeleton className="h-20 w-full" />
@@ -413,7 +340,6 @@ export default function TestPage() {
   if (!testData || !testData.variant || !testData.variant.block || !testData.testData) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <main className="container mx-auto px-4 lg:px-6 py-8">
           <div className="text-center">
             <h1 className="text-2xl font-bold text-foreground mb-4">Тест не найден</h1>
@@ -459,45 +385,14 @@ export default function TestPage() {
     submitTestMutation.mutate(userAnswers);
   };
 
-  // Mobile view with swipe navigation
-  const MobileView = () => (
-    <div className="md:hidden min-h-screen bg-background">
-      <Header />
-      <MobileTestNavigation
-        questions={allQuestions}
-        currentIndex={currentQuestionIndex}
-        userAnswers={userAnswers}
-        onQuestionChange={setCurrentQuestionIndex}
-        onAnswerSelect={handleAnswerSelect}
-        onSubmit={handleSubmitTest}
-        isSubmitting={submitTestMutation.isPending}
-        timeLeft={timeLeft}
-      />
-      
-      {/* Mobile Tools */}
-      {showCalculator && (
-        <Calculator 
-          isOpen={showCalculator}
-          onClose={() => setShowCalculator(false)}
-        />
-      )}
-      
-      {showPeriodicTable && (
-        <PeriodicTable
-          isOpen={showPeriodicTable}
-          onClose={() => setShowPeriodicTable(false)}
-        />
-      )}
-    </div>
-  );
+  // Mobile view removed: mobile will now use the same DesktopView markup
 
   // Desktop view
   const DesktopView = () => (
-    <div className="hidden md:block min-h-screen bg-background">
-      <Header />
+    <div className="min-h-screen bg-background">
       <main className="container mx-auto px-4 lg:px-6 py-8">
         {/* Test Header */}
-        <div className="mb-6">
+          <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-2xl font-bold text-foreground">
@@ -515,15 +410,9 @@ export default function TestPage() {
             </div>
             <div className="flex items-center space-x-4">
               <NetworkStatus className="md:hidden" />
-              <TestTimer 
-                initialTime={timeLeft}
-                onTimeUp={handleTimeUp}
-                onTick={setTimeLeft}
-              />
+              {/* old header timer removed */}
             </div>
           </div>
-          
-          <Progress value={progress} className="mb-4" />
           
           <div className="flex items-center space-x-4">
             {testData.variant.block.hasCalculator && (
@@ -551,8 +440,51 @@ export default function TestPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Question Content */}
+  <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          {/* Left subject menu (1 of 6) */}
+          <div className="lg:col-span-1">
+            <Card>
+              <CardHeader>
+                <CardTitle>Предметы</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {testData.testData.map((s, si) => {
+                  const unanswered = s.questions.filter(q => !userAnswers[q.id]).length;
+                  return (
+                    <button
+                      key={s.subject.id}
+                      className={`w-full text-left p-2 rounded-lg flex items-center justify-between hover:bg-muted/50 ${testData.testData.findIndex(x=>x.subject.id===s.subject.id) === si ? 'bg-muted' : ''}`}
+                      onClick={() => {
+                        // jump to first question of this subject
+                        const qIndex = allQuestions.findIndex(q => q.subjectName === s.subject.name);
+                        if (qIndex >= 0) setCurrentQuestionIndex(qIndex);
+                      }}
+                    >
+                      <span>{s.subject.name}</span>
+                      <Badge>{unanswered}</Badge>
+                    </button>
+                  );
+                })}
+              </CardContent>
+            </Card>
+
+            {/* Timer small at bottom */}
+            <div className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Таймер</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {/* Custom timer display: black normally, red when < 30 minutes */}
+                  <div className="text-center">
+                    <TimerDisplay seconds={timeLeft} />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          {/* Question Content (center) */}
           <div className="lg:col-span-3">
             <Card>
               <CardHeader>
@@ -592,7 +524,7 @@ export default function TestPage() {
                   ))}
                 </div>
                 
-                <div className="flex justify-between pt-6">
+                <div className="flex items-center justify-between pt-6">
                   <Button
                     variant="outline"
                     onClick={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))}
@@ -602,89 +534,92 @@ export default function TestPage() {
                     <i className="fas fa-chevron-left mr-2"></i>
                     Назад
                   </Button>
-                  
-                  {currentQuestionIndex === allQuestions.length - 1 ? (
-                    <Button
-                      onClick={handleSubmitTest}
-                      disabled={submitTestMutation.isPending}
-                      className="bg-accent hover:bg-accent/90"
-                      data-testid="button-submit-test"
-                    >
-                      {submitTestMutation.isPending ? "Завершение..." : "Завершить тест"}
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={() => setCurrentQuestionIndex(Math.min(allQuestions.length - 1, currentQuestionIndex + 1))}
-                      data-testid="button-next-question"
-                    >
-                      Далее
-                      <i className="fas fa-chevron-right ml-2"></i>
-                    </Button>
-                  )}
+
+                  {/* Subject-scoped pagination: only show questions that belong to current subject */}
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const curSubjectName = currentQuestion?.subjectName;
+                      if (!curSubjectName) return null;
+                      const subject = testData.testData.find(s => s.subject.name === curSubjectName);
+                      if (!subject) return null;
+                      return (
+                        <div className="flex items-center gap-2">
+                          {(() => {
+                            const total = subject.questions.length;
+                            const localIndex = subject.questions.findIndex(qi => qi.id === currentQuestion?.id);
+                            const windowSize = 9; // unified window size for mobile & desktop
+                            const half = Math.floor(windowSize / 2);
+                            let start = Math.max(0, localIndex - half);
+                            let end = Math.min(total, start + windowSize);
+                            if (end - start < windowSize) start = Math.max(0, end - windowSize);
+
+                            const buttons = [] as any[];
+                            for (let li = start; li < end; li++) {
+                              const q = subject.questions[li];
+                              const globalIndex = allQuestions.findIndex(aq => aq.id === q.id);
+                              const answered = !!userAnswers[q.id];
+                              const active = globalIndex === currentQuestionIndex;
+                              buttons.push(
+                                <Button
+                                  key={q.id}
+                                  variant={active ? "default" : "outline"}
+                                  size="sm"
+                                  className={`h-8 w-8 p-0 ${answered ? 'bg-accent/20 border-accent text-accent-foreground' : ''}`}
+                                  onClick={() => setCurrentQuestionIndex(globalIndex)}
+                                  data-testid={`button-subject-question-${li+1}`}
+                                >{li+1}</Button>
+                              );
+                            }
+                            return buttons;
+                          })()}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {currentQuestionIndex === allQuestions.length - 1 ? (
+                      <Button
+                        onClick={handleSubmitTest}
+                        disabled={submitTestMutation.isPending}
+                        className="bg-accent hover:bg-accent/90"
+                        data-testid="button-submit-test"
+                      >
+                        {submitTestMutation.isPending ? "Завершение..." : "Завершить тест"}
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          onClick={() => setCurrentQuestionIndex(Math.min(allQuestions.length - 1, currentQuestionIndex + 1))}
+                          data-testid="button-next-question"
+                        >
+                          Далее
+                          <i className="fas fa-chevron-right ml-2"></i>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={handleSubmitTest}
+                          data-testid="button-inline-finish"
+                          className="ml-2 text-sm"
+                        >
+                          Завершить тест
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Sidebar */}
-          <div className="space-y-4">
-            {/* Question Navigation */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Навигация</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-5 gap-2">
-                  {allQuestions.map((question, index) => (
-                    <Button
-                      key={question.id}
-                      variant={currentQuestionIndex === index ? "default" : "outline"}
-                      size="sm"
-                      className={`h-8 w-8 p-0 ${
-                        userAnswers[question.id] 
-                          ? currentQuestionIndex === index 
-                            ? "bg-accent" 
-                            : "bg-accent/20 border-accent text-accent-foreground" 
-                          : ""
-                      }`}
-                      onClick={() => setCurrentQuestionIndex(index)}
-                      data-testid={`button-question-${index + 1}`}
-                    >
-                      {index + 1}
-                    </Button>
-                  ))}
-                </div>
-                
-                <div className="mt-4 space-y-2 text-xs">
-                  <div className="flex items-center space-x-2">
-                    <div className="h-3 w-3 rounded bg-accent"></div>
-                    <span className="text-muted-foreground">Отвечен</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="h-3 w-3 rounded border border-border"></div>
-                    <span className="text-muted-foreground">Не отвечен</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          {/* Right sidebar removed as per request */}
+        </div>
 
-            {/* Progress Stats */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Статистика</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Отвечено:</span>
-                  <span className="font-medium">{Object.keys(userAnswers).length}/{allQuestions.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Прогресс:</span>
-                  <span className="font-medium">{Math.round(progress)}%</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+        {/* external pagination removed (navigation shown inside question card) */}
+
+        {/* Fixed finish button bottom-right */}
+        <div>
+          <Button onClick={handleSubmitTest} data-testid="button-finish-bottom" className="fixed bottom-6 right-6 z-50 bg-accent hover:bg-accent/90">Завершить тест</Button>
         </div>
 
         {/* Tools Modals */}
@@ -702,45 +637,10 @@ export default function TestPage() {
           />
         )}
 
-        {/* Video Proctoring Components */}
-        {testData?.variant?.block?.requiresProctoring && (
-          <>
-            <PermissionDialog
-              isOpen={showPermissionDialog}
-              onClose={() => setShowPermissionDialog(false)}
-              onPermissionGranted={handlePermissionGranted}
-              onPermissionDenied={handlePermissionDenied}
-              permissionStatus={permissionStatus}
-            />
-
-            {permissionStatus === "granted" && videoStream && (
-              <CameraPreview
-                stream={videoStream}
-                isRecording={isRecording}
-                isMinimized={cameraPreviewMinimized}
-                onToggleMinimize={() => setCameraPreviewMinimized(!cameraPreviewMinimized)}
-              />
-            )}
-
-            {isRecording && (
-              <RecordingStatus
-                isRecording={isRecording}
-                recordingDuration={recordingDuration}
-                uploadProgress={uploadProgress}
-                connectionStatus={syncStatus.isOnline ? "online" : "offline"}
-                onRetryUploads={handleRetryUploads}
-              />
-            )}
-          </>
-        )}
+        {/* Video proctoring removed */}
       </main>
     </div>
   );
 
-  return (
-    <>
-      <MobileView />
-      <DesktopView />
-    </>
-  );
+  return <DesktopView />;
 }

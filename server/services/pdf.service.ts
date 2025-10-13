@@ -164,7 +164,8 @@ export class PDFService {
     let filteredResults = testResults;
     if (options.dateRange?.from || options.dateRange?.to) {
       filteredResults = testResults.filter(result => {
-        const date = new Date(result.completedAt);
+        const completedAt = result.completedAt || Date.now();
+        const date = new Date(completedAt);
         if (options.dateRange?.from && date < new Date(options.dateRange.from)) return false;
         if (options.dateRange?.to && date > new Date(options.dateRange.to)) return false;
         return true;
@@ -175,7 +176,7 @@ export class PDFService {
     doc.moveDown();
 
     const resultsData = filteredResults.map(result => [
-      new Date(result.completedAt).toLocaleDateString('ru-RU'),
+      new Date(result.completedAt || Date.now()).toLocaleDateString('ru-RU'),
       `${result.score}/${result.totalQuestions}`,
       `${result.percentage.toFixed(1)}%`,
       this.formatTime(result.timeSpent / 60) // Convert seconds to minutes
@@ -212,9 +213,9 @@ export class PDFService {
     const rankingData = rankings.slice(0, 20).map((ranking, index) => [
       `#${index + 1}`,
       ranking.userId === userId ? 'Вы' : `User-${ranking.userId.slice(-4)}`,
-      ranking.totalScore.toString(),
-      ranking.testsCompleted.toString(),
-      `${ranking.averagePercentage.toFixed(1)}%`
+      String(ranking.totalScore ?? 0),
+      String(ranking.testsCompleted ?? 0),
+      `${((ranking.averagePercentage ?? 0).toFixed(1))}%`
     ]);
 
     this.addTable(doc, [

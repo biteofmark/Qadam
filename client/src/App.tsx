@@ -9,6 +9,9 @@ import { ThemeProvider } from "./components/theme-provider";
 import NotFound from "@/pages/not-found";
 import HomePage from "@/pages/home-page";
 import PublicHomePage from "@/pages/public-home-page";
+import PublicRankingPage from "@/pages/public-ranking-page";
+import PublicTestsPage from "@/pages/public-tests-page";
+import AboutPage from "@/pages/about-page";
 import AuthPage from "@/pages/auth-page";
 import BlockVariantsPage from "@/pages/block-variants";
 import TestPage from "@/pages/test-page";
@@ -43,6 +46,9 @@ function Router() {
     <Switch>
       {/* Public routes */}
       <Route path="/" component={PublicHomePage} />
+      <Route path="/public-ranking" component={PublicRankingPage} />
+      <Route path="/public-tests" component={PublicTestsPage} />
+      <Route path="/about" component={AboutPage} />
       <Route path="/auth" component={AuthPage} />
       <Route path="/public-test/:variantId" component={() => <TestPage />} />
       

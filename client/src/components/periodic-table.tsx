@@ -61,7 +61,7 @@ export default function PeriodicTable({ isOpen, onClose }: PeriodicTableProps) {
       "alkaline-earth": "bg-orange-100 hover:bg-orange-200 text-orange-800 border-orange-300",
       "transition-metal": "bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border-yellow-300",
       "post-transition": "bg-green-100 hover:bg-green-200 text-green-800 border-green-300",
-      "metalloid": "bg-blue-100 hover:bg-blue-200 text-blue-800 border-blue-300",
+      "metalloid": "bg-blue-50 hover:bg-blue-100 text-blue-800 border-blue-800",
       "nonmetal": "bg-purple-100 hover:bg-purple-200 text-purple-800 border-purple-300",
       "halogen": "bg-pink-100 hover:bg-pink-200 text-pink-800 border-pink-300",
       "noble-gas": "bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-300",

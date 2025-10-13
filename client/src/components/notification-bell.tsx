@@ -22,13 +22,14 @@ export default function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
 
   // Query for unread notification count
-  const { data: unreadCount = 0 } = useQuery({
+  const { data: unreadCountRaw = 0 } = useQuery<number>({
     queryKey: ["/api/notifications/unread-count"],
     refetchInterval: 30000, // Refresh every 30 seconds
   });
+  const unreadCount = Number(unreadCountRaw || 0);
 
   // Query for recent notifications (for dropdown)
-  const { data: notificationsData, isLoading } = useQuery({
+  const { data: notificationsData, isLoading } = useQuery<any>({
     queryKey: ["/api/notifications", { limit: 10 }],
     enabled: isOpen, // Only fetch when dropdown is open
   });
@@ -36,7 +37,7 @@ export default function NotificationBell() {
   // Mutation to mark notification as read
   const markAsReadMutation = useMutation({
     mutationFn: (notificationId: string) => 
-      apiRequest(`/api/notifications/${notificationId}/mark-read`, { method: "POST" }),
+      apiRequest("POST", `/api/notifications/${notificationId}/mark-read`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
@@ -46,7 +47,7 @@ export default function NotificationBell() {
   // Mutation to mark all as read
   const markAllAsReadMutation = useMutation({
     mutationFn: () => 
-      apiRequest("/api/notifications/mark-all-read", { method: "POST" }),
+      apiRequest("POST", "/api/notifications/mark-all-read"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
@@ -62,8 +63,9 @@ export default function NotificationBell() {
 
     // Handle navigation based on notification type and metadata
     if (notification.type === "TEST_COMPLETED" || notification.type === "TEST_REMINDER") {
-      if (notification.metadata?.variantId) {
-        setLocation(`/test/${notification.metadata.variantId}`);
+      const variantId = (notification.metadata && (notification.metadata as any).variantId) || null;
+      if (variantId) {
+        setLocation(`/test/${variantId}`);
       } else {
         setLocation("/");
       }
@@ -77,11 +79,11 @@ export default function NotificationBell() {
   const getNotificationIcon = (type: NotificationType) => {
     switch (type) {
       case "TEST_COMPLETED":
-        return "fas fa-check-circle text-green-500";
+        return "fas fa-check-circle text-blue-800";
       case "TEST_REMINDER":
-        return "fas fa-clock text-blue-500";
+        return "fas fa-clock text-blue-800";
       case "ACHIEVEMENT":
-        return "fas fa-trophy text-yellow-500";
+        return "fas fa-trophy text-blue-800";
       case "SYSTEM_MESSAGE":
         return "fas fa-info-circle text-gray-500";
       default:
@@ -106,7 +108,7 @@ export default function NotificationBell() {
     return notificationDate.toLocaleDateString();
   };
 
-  const notifications = notificationsData?.notifications || [];
+  const notifications = (notificationsData && (notificationsData as any).notifications) || [];
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
@@ -164,7 +166,7 @@ export default function NotificationBell() {
             </div>
           ) : (
             <div className="space-y-1 p-2">
-              {notifications.map((notification) => (
+              {notifications.map((notification: Notification) => (
                 <div
                   key={notification.id}
                   className={`p-3 rounded-md cursor-pointer transition-colors hover:bg-accent ${
@@ -175,7 +177,7 @@ export default function NotificationBell() {
                 >
                   <div className="flex items-start space-x-3">
                     <div className="flex-shrink-0 mt-1">
-                      <i className={`${getNotificationIcon(notification.type)} text-sm`}></i>
+                      <i className={`${getNotificationIcon(notification.type as NotificationType)} text-sm`}></i>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
@@ -190,7 +192,7 @@ export default function NotificationBell() {
                         {notification.message}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {formatTimeAgo(notification.createdAt)}
+                        {formatTimeAgo(notification.createdAt || new Date())}
                       </p>
                     </div>
                   </div>

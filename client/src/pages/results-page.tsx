@@ -184,8 +184,8 @@ export default function ResultsPage() {
                 </div>
                 
                 <div className="text-center">
-                  <div className="h-12 w-12 mx-auto rounded-lg bg-blue-500/10 flex items-center justify-center mb-2">
-                    <i className="fas fa-trophy text-blue-500"></i>
+                  <div className="h-12 w-12 mx-auto rounded-lg bg-blue-800/10 flex items-center justify-center mb-2">
+                    <i className="fas fa-trophy text-blue-800"></i>
                   </div>
                   <div className="text-sm text-muted-foreground">Баллы</div>
                   <div className="text-xl font-semibold text-foreground" data-testid="text-score">

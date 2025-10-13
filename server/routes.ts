@@ -4,12 +4,10 @@ import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { insertBlockSchema, insertVariantSchema, insertSubjectSchema, insertQuestionSchema, insertAnswerSchema, insertTestResultSchema,
          insertNotificationSchema, insertNotificationSettingsSchema, insertReminderSchema, notificationTypeSchema,
-         insertVideoRecordingSchema,
          analyticsOverviewSchema, subjectAggregateSchema, historyPointSchema, correctnessBreakdownSchema, comparisonStatsSchema,
          insertExportJobSchema, exportTypeSchema, exportFormatSchema, exportOptionsSchema } from "@shared/schema";
 import { ObjectStorageService } from "./objectStorage";
-// CRITICAL #4: Rate Limiting - Import rate limiting middleware
-import { videoUploadRateLimiter } from "./rate-limiting";
+// Rate limiting middleware removed for video upload (proctoring removed)
 // CRITICAL #5: Operational Hardening - Import health checks and monitoring
 import { operationalHardening } from "./operational-hardening";
 
@@ -77,6 +75,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(freeVariants);
     } catch (error) {
       res.status(500).json({ message: "Ошибка получения бесплатных вариантов" });
+    }
+  });
+
+  app.get("/api/public/blocks", async (req, res) => {
+    try {
+      const blocks = await storage.getPublicBlocks();
+      res.json(blocks);
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка получения блоков тестов" });
     }
   });
 
@@ -1011,302 +1018,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get VAPID public key for frontend
   app.get("/api/push/vapid-key", (req, res) => {
     res.json({
-      publicKey: 'BCHhBDxcAj5TrD2Zzg3g3UjgBHO9SjO9SjO9SjO9SjO9SjO9SjO9SjO9SjO9SjO9SjO9SjO9Sj'
+      publicKey: 'BCHhBDxcAj5TrD2Zzg3g3UjgBHO9SjO9SjO9SjO9SjO9SjO9SjO9SjO9SjO9SjO9SjO9Sj'
     });
   });
 
-  // CRITICAL #4: Rate Limiting - Apply rate limiting to video endpoints
-  // Video Recording routes
-  app.post("/api/video-recordings/upload-url", 
-    requireAuth, 
-    videoUploadRateLimiter.emergencyMode,
-    videoUploadRateLimiter.videoUploadLimit, 
-    async (req, res) => {
-    try {
-      const { userId, testSessionId, segmentIndex } = req.body;
-      
-      if (!userId || !testSessionId || segmentIndex === undefined) {
-        return res.status(400).json({ message: "Недостаточно данных" });
-      }
-
-      const objectStorageService = new ObjectStorageService();
-      const uploadURL = await objectStorageService.getVideoSegmentUploadURL(
-        userId,
-        testSessionId,
-        segmentIndex
-      );
-
-      res.json({ uploadURL });
-    } catch (error) {
-      console.error("Error getting video upload URL:", error);
-      res.status(500).json({ message: "Ошибка получения URL для загрузки" });
-    }
-  });
-
-  app.post("/api/video-recordings/segment-uploaded", 
-    requireAuth, 
-    videoUploadRateLimiter.emergencyMode,
-    videoUploadRateLimiter.videoUploadLimit, 
-    async (req, res) => {
-    try {
-      const { userId, testSessionId, variantId, segmentIndex, uploadPath, duration, timestamp } = req.body;
-      
-      if (!userId || !testSessionId || !variantId || segmentIndex === undefined) {
-        return res.status(400).json({ message: "Недостаточно данных" });
-      }
-
-      // Find or create video recording
-      let recordings = await storage.getVideoRecordingsByUser(userId);
-      let recording = recordings.find(r => r.testSessionId === testSessionId);
-      
-      if (!recording) {
-        recording = await storage.createVideoRecording({
-          userId,
-          variantId,
-          testSessionId,
-          segmentsPaths: [],
-          totalDurationMs: 0,
-          uploadStatus: "uploading",
-          metadata: {
-            segments: []
-          }
-        });
-      }
-
-      // Add segment to recording
-      await storage.addVideoSegment(recording.id, uploadPath);
-      
-      // Update metadata
-      const currentMetadata = recording.metadata || { segments: [] };
-      await storage.updateVideoRecording(recording.id, {
-        totalDurationMs: recording.totalDurationMs + duration,
-        metadata: {
-          ...currentMetadata,
-          segments: [
-            ...(currentMetadata.segments || []),
-            {
-              index: segmentIndex,
-              path: uploadPath,
-              duration,
-              timestamp,
-              uploadedAt: Date.now()
-            }
-          ]
-        }
-      });
-
-      res.json({ success: true, recordingId: recording.id });
-    } catch (error) {
-      console.error("Error recording video segment:", error);
-      res.status(500).json({ message: "Ошибка сохранения сегмента" });
-    }
-  });
-
-  app.post("/api/video-recordings/complete", 
-    requireAuth, 
-    videoUploadRateLimiter.emergencyMode,
-    videoUploadRateLimiter.videoUploadLimit, 
-    async (req, res) => {
-    try {
-      const { userId, testSessionId, variantId, metadata } = req.body;
-      
-      const recordings = await storage.getVideoRecordingsByUser(userId);
-      const recording = recordings.find(r => r.testSessionId === testSessionId);
-      
-      if (!recording) {
-        return res.status(404).json({ message: "Запись не найдена" });
-      }
-
-      await storage.markVideoRecordingComplete(recording.id);
-      
-      res.json({ success: true, recordingId: recording.id });
-    } catch (error) {
-      console.error("Error completing video recording:", error);
-      res.status(500).json({ message: "Ошибка завершения записи" });
-    }
-  });
-
-  app.get("/api/video-recordings/user/:userId", requireAuth, async (req, res) => {
-    try {
-      const { userId } = req.params;
-      
-      // Only allow users to view their own recordings or admins to view any
-      if (req.user?.id !== userId && !isAdmin(req.user)) {
-        return res.status(403).json({ message: "Доступ запрещен" });
-      }
-
-      const recordings = await storage.getVideoRecordingsByUser(userId);
-      res.json(recordings);
-    } catch (error) {
-      console.error("Error getting user video recordings:", error);
-      res.status(500).json({ message: "Ошибка получения записей" });
-    }
-  });
-
-  app.get("/api/video-recordings/:recordingId", requireAuth, async (req, res) => {
-    try {
-      const { recordingId } = req.params;
-      const recording = await storage.getVideoRecording(recordingId);
-      
-      if (!recording) {
-        return res.status(404).json({ message: "Запись не найдена" });
-      }
-
-      // Only allow user who owns the recording or admins to view
-      if (req.user?.id !== recording.userId && !isAdmin(req.user)) {
-        return res.status(403).json({ message: "Доступ запрещен" });
-      }
-
-      res.json(recording);
-    } catch (error) {
-      console.error("Error getting video recording:", error);
-      res.status(500).json({ message: "Ошибка получения записи" });
-    }
-  });
-
-  // CRITICAL #3: Access Control - Admin-only signed read URLs for video segments
-  app.post("/api/admin/video-recordings/:recordingId/signed-urls", 
-    requireAdmin, 
-    videoUploadRateLimiter.adminVideoLimit, 
-    async (req, res) => {
-    try {
-      const { recordingId } = req.params;
-      const { ttlMinutes = 5 } = req.body;
-      
-      const recording = await storage.getVideoRecording(recordingId);
-      if (!recording) {
-        return res.status(404).json({ message: "Запись не найдена" });
-      }
-
-      if (!recording.segmentsPaths || recording.segmentsPaths.length === 0) {
-        return res.status(404).json({ message: "Сегменты видео не найдены" });
-      }
-
-      const objectStorageService = new ObjectStorageService();
-      
-      // Validate access for each segment and generate signed read URLs
-      const signedURLs = [];
-      const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
-      
-      for (const segmentPath of recording.segmentsPaths) {
-        // Validate segment access (admin already verified by requireAdmin middleware)
-        const accessValidation = await objectStorageService.validateSegmentAccess(
-          segmentPath, 
-          req.user?.id!, 
-          true // isAdmin = true
-        );
-        
-        if (!accessValidation.authorized) {
-          console.error(`[SECURITY] Admin ${req.user?.id} denied access to segment ${segmentPath}: ${accessValidation.reason}`);
-          objectStorageService.logVideoAccess(segmentPath, req.user?.id!, true, false, clientIP);
-          continue;
-        }
-
-        try {
-          const signedURL = await objectStorageService.getVideoSegmentReadURL(segmentPath, ttlMinutes);
-          signedURLs.push({
-            segmentPath,
-            signedURL,
-            expiresAt: new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString()
-          });
-          
-          // Log successful access generation
-          objectStorageService.logVideoAccess(segmentPath, req.user?.id!, true, true, clientIP);
-        } catch (error) {
-          console.error(`[ERROR] Failed to generate signed URL for segment ${segmentPath}:`, error);
-          objectStorageService.logVideoAccess(segmentPath, req.user?.id!, true, false, clientIP);
-        }
-      }
-
-      if (signedURLs.length === 0) {
-        return res.status(403).json({ message: "Не удалось создать signed URLs для сегментов" });
-      }
-
-      console.log(`[AUDIT] Admin ${req.user?.id} generated ${signedURLs.length} signed URLs for recording ${recordingId} with TTL ${ttlMinutes} minutes`);
-      
-      res.json({
-        recordingId,
-        signedURLs,
-        ttlMinutes,
-        generatedAt: new Date().toISOString(),
-        generatedBy: req.user?.id
-      });
-    } catch (error) {
-      console.error("Error generating signed URLs:", error);
-      res.status(500).json({ message: "Ошибка создания signed URLs" });
-    }
-  });
-
-  // CRITICAL #3: Access Control - Admin-only batch signed URL generation
-  app.post("/api/admin/video-recordings/batch-signed-urls", 
-    requireAdmin, 
-    videoUploadRateLimiter.adminVideoLimit, 
-    async (req, res) => {
-    try {
-      const { recordingIds, ttlMinutes = 5 } = req.body;
-      
-      if (!Array.isArray(recordingIds) || recordingIds.length === 0) {
-        return res.status(400).json({ message: "Список recordingIds обязателен" });
-      }
-      
-      if (recordingIds.length > 10) {
-        return res.status(400).json({ message: "Максимум 10 записей за раз" });
-      }
-
-      const objectStorageService = new ObjectStorageService();
-      const results = [];
-      const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
-      
-      for (const recordingId of recordingIds) {
-        try {
-          const recording = await storage.getVideoRecording(recordingId);
-          if (!recording) {
-            results.push({ recordingId, error: "Запись не найдена" });
-            continue;
-          }
-
-          if (!recording.segmentsPaths || recording.segmentsPaths.length === 0) {
-            results.push({ recordingId, error: "Сегменты не найдены" });
-            continue;
-          }
-
-          const signedURLs = await objectStorageService.getVideoRecordingReadURLs(
-            recording.segmentsPaths, 
-            ttlMinutes
-          );
-          
-          // Log access for audit trail
-          recording.segmentsPaths.forEach(path => {
-            objectStorageService.logVideoAccess(path, req.user?.id!, true, true, clientIP);
-          });
-          
-          results.push({
-            recordingId,
-            signedURLs: signedURLs.map(item => ({
-              segmentPath: item.path,
-              signedURL: item.url,
-              expiresAt: new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString()
-            }))
-          });
-        } catch (error) {
-          console.error(`Error processing recording ${recordingId}:`, error);
-          results.push({ recordingId, error: "Ошибка обработки" });
-        }
-      }
-
-      console.log(`[AUDIT] Admin ${req.user?.id} batch generated signed URLs for ${recordingIds.length} recordings`);
-      
-      res.json({
-        results,
-        ttlMinutes,
-        generatedAt: new Date().toISOString(),
-        generatedBy: req.user?.id
-      });
-    } catch (error) {
-      console.error("Error in batch signed URL generation:", error);
-      res.status(500).json({ message: "Ошибка batch создания signed URLs" });
-    }
-  });
+  // Video proctoring has been fully removed from the application.
+  // All related endpoints and handlers were deleted as part of the proctoring removal.
+  
 
   const httpServer = createServer(app);
   return httpServer;

@@ -146,11 +146,17 @@ export function usePushNotifications() {
       });
 
       // Send subscription to server
+      const toBase64 = (u8: Uint8Array | null) => {
+        if (!u8) return '';
+        const arr = Array.from(u8);
+        return btoa(String.fromCharCode.apply(null, arr as any));
+      };
+
       const subscriptionData: PushSubscriptionData = {
         endpoint: subscription.endpoint,
         keys: {
-          p256dh: btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('p256dh')!))),
-          auth: btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('auth')!)))
+          p256dh: toBase64(new Uint8Array(subscription.getKey('p256dh')!)),
+          auth: toBase64(new Uint8Array(subscription.getKey('auth')!))
         }
       };
 

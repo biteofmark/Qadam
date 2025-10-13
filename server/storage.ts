@@ -3,10 +3,9 @@ import { type User, type InsertUser, type Block, type InsertBlock, type Variant,
          type TestResult, type InsertTestResult, type SubjectProgress, type UserRanking,
          type Notification, type InsertNotification, type NotificationSettings, type InsertNotificationSettings,
          type Reminder, type InsertReminder, type NotificationType,
-         type VideoRecording, type InsertVideoRecording,
          type AnalyticsOverview, type SubjectAggregate, type HistoryPoint, type CorrectnessBreakdown, type ComparisonStats,
          type ExportJob, type InsertExportJob, type ExportType,
-         videoRecordings, users, blocks, variants, subjects, questions, answers, testResults,
+         users, blocks, variants, subjects, questions, answers, testResults,
          subjectProgress as subjectProgressTable, notifications, notificationSettings,
          reminders, exportJobs } from "@shared/schema";
 import { randomUUID } from "crypto";
@@ -24,6 +23,7 @@ export interface IStorage {
   
   // Blocks
   getAllBlocks(): Promise<Block[]>;
+  getPublicBlocks(): Promise<(Block & { variantCount: number; totalQuestions: number })[]>;
   getBlock(id: string): Promise<Block | undefined>;
   createBlock(block: InsertBlock): Promise<Block>;
   updateBlock(id: string, block: Partial<InsertBlock>): Promise<Block | undefined>;
@@ -115,14 +115,7 @@ export interface IStorage {
   incrementExportCount(userId: string): Promise<void>;
   
   // Video Recordings
-  createVideoRecording(recording: InsertVideoRecording): Promise<VideoRecording>;
-  getVideoRecording(id: string): Promise<VideoRecording | undefined>;
-  getVideoRecordingsByUser(userId: string): Promise<VideoRecording[]>;
-  getVideoRecordingsByTest(testResultId: string): Promise<VideoRecording[]>;
-  updateVideoRecording(id: string, update: Partial<VideoRecording>): Promise<VideoRecording | undefined>;
-  addVideoSegment(recordingId: string, segmentPath: string): Promise<void>;
-  markVideoRecordingComplete(id: string): Promise<void>;
-  deleteVideoRecording(id: string, userId: string): Promise<void>;
+  // Video recording methods removed
   
   sessionStore: session.Store;
 }
@@ -132,6 +125,9 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   private fileCache: Map<string, { buffer: Buffer; expiresAt: number }>;
   private exportRateLimit: Map<string, { count: number; lastReset: number; concurrent: number }>;
+  private notificationSettings: Map<string, NotificationSettings>;
+  private reminders: Map<string, Reminder>;
+  private exportJobs: Map<string, ExportJob>;
   
   sessionStore: session.Store;
 
@@ -139,6 +135,9 @@ export class DatabaseStorage implements IStorage {
     // Keep some in-memory caches for non-persistent data
     this.fileCache = new Map();
     this.exportRateLimit = new Map();
+    this.notificationSettings = new Map();
+    this.reminders = new Map();
+    this.exportJobs = new Map();
     
     const MemoryStore = createMemoryStore(session);
     this.sessionStore = new MemoryStore({
@@ -147,77 +146,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Video Recordings implementation - CRITICAL #1: Durability fix
-  async createVideoRecording(recording: InsertVideoRecording): Promise<VideoRecording> {
-    const [videoRecording] = await db
-      .insert(videoRecordings)
-      .values({
-        ...recording,
-        startedAt: new Date(),
-        completedAt: null,
-      })
-      .returning();
-    return videoRecording;
-  }
-
-  async getVideoRecording(id: string): Promise<VideoRecording | undefined> {
-    const [recording] = await db.select().from(videoRecordings).where(eq(videoRecordings.id, id));
-    return recording || undefined;
-  }
-
-  async getVideoRecordingsByUser(userId: string): Promise<VideoRecording[]> {
-    return await db
-      .select()
-      .from(videoRecordings)
-      .where(eq(videoRecordings.userId, userId))
-      .orderBy(desc(videoRecordings.startedAt));
-  }
-
-  async getVideoRecordingsByTest(testResultId: string): Promise<VideoRecording[]> {
-    return await db
-      .select()
-      .from(videoRecordings)
-      .where(eq(videoRecordings.testResultId, testResultId))
-      .orderBy(desc(videoRecordings.startedAt));
-  }
-
-  async updateVideoRecording(id: string, update: Partial<VideoRecording>): Promise<VideoRecording | undefined> {
-    const [updated] = await db
-      .update(videoRecordings)
-      .set(update)
-      .where(eq(videoRecordings.id, id))
-      .returning();
-    return updated || undefined;
-  }
-
-  async addVideoSegment(recordingId: string, segmentPath: string): Promise<void> {
-    const [recording] = await db.select().from(videoRecordings).where(eq(videoRecordings.id, recordingId));
-    if (!recording) return;
-    
-    const updatedPaths = [...recording.segmentsPaths, segmentPath];
-    await db
-      .update(videoRecordings)
-      .set({ segmentsPaths: updatedPaths })
-      .where(eq(videoRecordings.id, recordingId));
-  }
-
-  async markVideoRecordingComplete(id: string): Promise<void> {
-    await db
-      .update(videoRecordings)
-      .set({ 
-        uploadStatus: "completed",
-        completedAt: new Date()
-      })
-      .where(eq(videoRecordings.id, id));
-  }
-
-  async deleteVideoRecording(id: string, userId: string): Promise<void> {
-    await db
-      .delete(videoRecordings)
-      .where(and(
-        eq(videoRecordings.id, id),
-        eq(videoRecordings.userId, userId)
-      ));
-  }
+  // Video recording methods removed
 
   // Users implementation
   async getUser(id: string): Promise<User | undefined> {
@@ -355,6 +284,27 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(blocks);
   }
 
+  async getPublicBlocks(): Promise<(Block & { variantCount: number; totalQuestions: number })[]> {
+    const result = await db
+      .select({
+        id: blocks.id,
+        name: blocks.name,
+        hasCalculator: blocks.hasCalculator,
+        hasPeriodicTable: blocks.hasPeriodicTable,
+        variantCount: count(variants.id),
+        totalQuestions: sql<number>`COALESCE(SUM(
+          (SELECT COUNT(*) FROM ${questions} 
+           INNER JOIN ${subjects} ON ${questions.subjectId} = ${subjects.id}
+           WHERE ${subjects.variantId} = ${variants.id})
+        ), 0)`.as('totalQuestions')
+      })
+      .from(blocks)
+      .leftJoin(variants, eq(variants.blockId, blocks.id))
+      .groupBy(blocks.id, blocks.name, blocks.hasCalculator, blocks.hasPeriodicTable);
+    
+    return result;
+  }
+
   async getBlock(id: string): Promise<Block | undefined> {
     const [block] = await db.select().from(blocks).where(eq(blocks.id, id));
     return block || undefined;
@@ -367,7 +317,7 @@ export class DatabaseStorage implements IStorage {
         ...insertBlock,
         hasCalculator: insertBlock.hasCalculator ?? false,
         hasPeriodicTable: insertBlock.hasPeriodicTable ?? false,
-        requiresProctoring: insertBlock.requiresProctoring ?? false
+        // requiresProctoring removed
       })
       .returning();
     return block;
@@ -402,7 +352,6 @@ export class DatabaseStorage implements IStorage {
           name: blocks.name,
           hasCalculator: blocks.hasCalculator,
           hasPeriodicTable: blocks.hasPeriodicTable,
-          requiresProctoring: blocks.requiresProctoring,
         }
       })
       .from(variants)
@@ -618,13 +567,14 @@ export class DatabaseStorage implements IStorage {
     }
     
     const progress: SubjectProgress[] = [];
-    for (const [subjectName, stats] of progressMap) {
+    for (const [subjectName, stats] of Array.from(progressMap.entries())) {
       progress.push({
+        id: randomUUID(),
         userId,
         subjectName,
         totalAnswered: stats.total,
         correctAnswered: stats.correct,
-        lastUpdated: new Date()
+        lastActivity: new Date()
       });
     }
     
@@ -887,17 +837,22 @@ export class DatabaseStorage implements IStorage {
 
   async getNotifications(userId: string, page: number = 1, limit: number = 10, type?: NotificationType): Promise<{ notifications: Notification[], total: number }> {
     const offset = (page - 1) * limit;
-    
-    let query = db.select().from(notifications).where(eq(notifications.userId, userId));
-    
+
+    // Build query with explicit conditions to avoid reassigning query objects
+    let userNotifications;
     if (type) {
-      query = query.where(eq(notifications.type, type));
+      userNotifications = await db.select().from(notifications)
+        .where(and(eq(notifications.userId, userId), eq(notifications.type, type)))
+        .orderBy(desc(notifications.createdAt))
+        .limit(limit)
+        .offset(offset);
+    } else {
+      userNotifications = await db.select().from(notifications)
+        .where(eq(notifications.userId, userId))
+        .orderBy(desc(notifications.createdAt))
+        .limit(limit)
+        .offset(offset);
     }
-    
-    const userNotifications = await query
-      .orderBy(desc(notifications.createdAt))
-      .limit(limit)
-      .offset(offset);
     
     // Get total count for pagination
     const [{ count }] = await db
@@ -954,10 +909,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertNotificationSettings(settings: InsertNotificationSettings): Promise<NotificationSettings> {
-    const existingSettings = this.notificationSettings.get(settings.userId);
+    const existingSettings = this.notificationSettings.get(settings.userId) || {} as NotificationSettings;
     const updatedSettings: NotificationSettings = {
-      ...existingSettings,
-      ...settings,
+      userId: settings.userId,
+      testCompletedEnabled: settings.testCompletedEnabled !== undefined ? settings.testCompletedEnabled : (existingSettings.testCompletedEnabled ?? true),
+      testReminderEnabled: settings.testReminderEnabled !== undefined ? settings.testReminderEnabled : (existingSettings.testReminderEnabled ?? true),
+      systemMessageEnabled: settings.systemMessageEnabled !== undefined ? settings.systemMessageEnabled : (existingSettings.systemMessageEnabled ?? true),
+      achievementEnabled: settings.achievementEnabled !== undefined ? settings.achievementEnabled : (existingSettings.achievementEnabled ?? true),
+      inAppEnabled: settings.inAppEnabled !== undefined ? settings.inAppEnabled : (existingSettings.inAppEnabled ?? true),
+      pushEnabled: settings.pushEnabled !== undefined ? settings.pushEnabled : (existingSettings.pushEnabled ?? false),
+      emailEnabled: settings.emailEnabled !== undefined ? settings.emailEnabled : (existingSettings.emailEnabled ?? false),
+      reminderIntervalMinutes: settings.reminderIntervalMinutes ?? existingSettings.reminderIntervalMinutes ?? 30,
+      maxRemindersPerDay: settings.maxRemindersPerDay ?? existingSettings.maxRemindersPerDay ?? 3,
+      quietHoursStart: settings.quietHoursStart ?? existingSettings.quietHoursStart ?? "22:00",
+      quietHoursEnd: settings.quietHoursEnd ?? existingSettings.quietHoursEnd ?? "08:00",
       updatedAt: new Date(),
     };
     this.notificationSettings.set(settings.userId, updatedSettings);
@@ -967,17 +932,21 @@ export class DatabaseStorage implements IStorage {
   // Reminder methods
   async getReminders(userId: string): Promise<Reminder[]> {
     return Array.from(this.reminders.values())
-      .filter(r => r.userId === userId && r.isActive)
-      .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
+      .filter((r: Reminder) => r.userId === userId && !!r.isActive)
+      .sort((a: Reminder, b: Reminder) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
   }
 
   async createReminder(insertReminder: InsertReminder): Promise<Reminder> {
     const id = randomUUID();
     const reminder: Reminder = {
-      ...insertReminder,
       id,
       createdAt: new Date(),
+      variantId: insertReminder.variantId,
+      userId: insertReminder.userId,
+      dueAt: insertReminder.dueAt,
+      recurrence: insertReminder.recurrence ?? null,
       lastSentAt: null,
+      isActive: insertReminder.isActive ?? true,
     };
     this.reminders.set(id, reminder);
     return reminder;
@@ -1041,7 +1010,7 @@ export class DatabaseStorage implements IStorage {
   async listExportJobsByUser(userId: string, limit = 10): Promise<ExportJob[]> {
     return Array.from(this.exportJobs.values())
       .filter(job => job.userId === userId)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .sort((a, b) => (new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()))
       .slice(0, limit);
   }
 
@@ -1122,7 +1091,7 @@ export class DatabaseStorage implements IStorage {
 
   async clearExpiredFiles(): Promise<void> {
     const now = Date.now();
-    for (const [key, item] of this.fileCache.entries()) {
+    for (const [key, item] of Array.from(this.fileCache.entries())) {
       if (now > item.expiresAt) {
         this.fileCache.delete(key);
       }
@@ -1159,7 +1128,7 @@ export class DatabaseStorage implements IStorage {
     const jobsToday = Array.from(this.exportJobs.values())
       .filter(job => 
         job.userId === userId && 
-        now - new Date(job.createdAt).getTime() < 24 * 60 * 60 * 1000
+        now - new Date(job.createdAt ?? 0).getTime() < 24 * 60 * 60 * 1000
       ).length;
 
     if (jobsToday >= 20) {

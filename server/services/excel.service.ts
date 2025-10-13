@@ -127,7 +127,8 @@ export class ExcelService {
     let filteredResults = testResults;
     if (options.dateRange?.from || options.dateRange?.to) {
       filteredResults = testResults.filter(result => {
-        const date = new Date(result.completedAt);
+        const completedAt = result.completedAt || Date.now();
+        const date = new Date(completedAt);
         if (options.dateRange?.from && date < new Date(options.dateRange.from)) return false;
         if (options.dateRange?.to && date > new Date(options.dateRange.to)) return false;
         return true;
@@ -171,7 +172,7 @@ export class ExcelService {
 
     // Summary sheet
     const summarySheet = workbook.addWorksheet('Сводка');
-    this.setupSummarySheet(summarySheet, history, dateRange);
+      this.setupSummarySheet(summarySheet, history, dateRange as any);
 
     // Correctness sheet
     if (correctness.length > 0) {
@@ -183,7 +184,7 @@ export class ExcelService {
   private static setupOverviewSheet(sheet: ExcelJS.Worksheet, overview: AnalyticsOverview): void {
     // Title
     sheet.getCell('A1').value = 'Общая статистика';
-    sheet.getCell('A1').style = { ...this.STYLES.header, font: { ...this.STYLES.header.font, size: 16 } };
+  sheet.getCell('A1').style = { ...this.STYLES.header, font: { ...this.STYLES.header.font, size: 16 } } as any;
     sheet.mergeCells('A1:B1');
 
     // Data

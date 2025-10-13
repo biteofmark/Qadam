@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import VideoRecordingsViewer from "@/components/admin/VideoRecordingsViewer";
+// Video recordings admin view removed
 import type { Block, Variant, Subject, Question, Answer } from "@shared/schema";
 
 export default function AdminPage() {
@@ -207,7 +207,7 @@ export default function AdminPage() {
             <TabsTrigger value="variants" data-testid="tab-variants">Варианты</TabsTrigger>
             <TabsTrigger value="subjects" data-testid="tab-subjects">Предметы</TabsTrigger>
             <TabsTrigger value="questions" data-testid="tab-questions">Вопросы и ответы</TabsTrigger>
-            <TabsTrigger value="video-recordings" data-testid="tab-video-recordings">Видео записи</TabsTrigger>
+            {/* Video recordings tab removed (proctoring deprecated) */}
           </TabsList>
 
           <TabsContent value="blocks" className="space-y-6">
@@ -397,8 +397,8 @@ export default function AdminPage() {
                     {subjects.map((subject) => (
                       <div key={subject.id} className="flex items-center justify-between p-4 border border-border rounded-lg">
                         <div className="flex items-center space-x-4">
-                          <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                            <i className="fas fa-book text-blue-500"></i>
+                          <div className="h-10 w-10 rounded-lg bg-blue-800/10 flex items-center justify-center">
+                            <i className="fas fa-book text-blue-800"></i>
                           </div>
                           <div>
                             <h3 className="font-medium text-foreground">{subject.name}</h3>
@@ -586,9 +586,7 @@ export default function AdminPage() {
           </TabsContent>
 
 
-          <TabsContent value="video-recordings" className="space-y-6">
-            <VideoRecordingsViewer />
-          </TabsContent>
+          {/* Video recordings content removed */}
         </Tabs>
       </main>
       <Footer />

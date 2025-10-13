@@ -7,10 +7,26 @@ import { ExcelService } from "./services/excel.service";
 import { randomUUID } from "crypto";
 // CRITICAL #5: Operational Hardening - Import startup validation
 import { operationalHardening } from "./operational-hardening";
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import { createServer } from 'http';
+import { WebSocketServer } from 'ws';
+import cors from 'cors';
+
+declare module 'cors';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' ? true : 'http://localhost:3000',
+  credentials: true, // Разрешить отправку куки
+}));
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -170,10 +186,20 @@ async function processExportJobs() {
         let fileName: string;
         
         if (job.format === "PDF") {
-          fileBuffer = await PDFService.generateReport(job.userId, job.type as "TEST_REPORT" | "USER_ANALYTICS" | "RANKINGS" | "PERIOD_SUMMARY", job.format, job.options || {});
+          fileBuffer = await PDFService.generateReport(
+            job.userId,
+            job.type as "TEST_REPORT" | "USER_ANALYTICS" | "RANKINGS" | "PERIOD_SUMMARY",
+            job.format,
+            { includeCharts: true, ...(job.options || {}) }
+          );
           fileName = `${job.type.toLowerCase()}_${new Date().toISOString().split('T')[0]}.pdf`;
         } else if (job.format === "EXCEL") {
-          fileBuffer = await ExcelService.generateReport(job.userId, job.type as "TEST_REPORT" | "USER_ANALYTICS" | "RANKINGS" | "PERIOD_SUMMARY", job.format, job.options || {});
+          fileBuffer = await ExcelService.generateReport(
+            job.userId,
+            job.type as "TEST_REPORT" | "USER_ANALYTICS" | "RANKINGS" | "PERIOD_SUMMARY",
+            job.format,
+            { includeCharts: true, ...(job.options || {}) }
+          );
           fileName = `${job.type.toLowerCase()}_${new Date().toISOString().split('T')[0]}.xlsx`;
         } else {
           throw new Error(`Неподдерживаемый формат: ${job.format}`);
@@ -274,8 +300,8 @@ async function cleanupExpiredFiles() {
 
 (async () => {
   try {
-    // CRITICAL #5: Operational Hardening - Startup validation
-    console.log('[STARTUP] Initializing video proctoring system...');
+  // CRITICAL #5: Operational Hardening - Startup validation
+  console.log('[STARTUP] Performing startup validation checks...');
     
     const validation = await operationalHardening.validateStartupRequirements();
     if (!validation.success) {
@@ -318,16 +344,42 @@ async function cleanupExpiredFiles() {
     serveStatic(app);
   }
 
+  // In production, static files are already served by serveStatic function
+  // This fallback is only needed if serveStatic is not handling it properly
+  if (app.get("env") !== "development") {
+    app.get('*', (req, res) => {
+      const publicPath = path.resolve(__dirname, 'public');
+      res.sendFile(path.resolve(publicPath, 'index.html'));
+    });
+  }
+
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
+  
+  // Create HTTP server for WebSocket support
+  const httpServer = createServer(app);
+  
+  // Create WebSocket server
+  const wss = new WebSocketServer({ server: httpServer });
+  
+  wss.on('connection', (ws) => {
+    log('WebSocket connection established');
+    
+    ws.on('message', (message) => {
+      log(`WebSocket received: ${message}`);
+      ws.send(`Echo: ${message}`);
+    });
+    
+    ws.on('close', () => {
+      log('WebSocket connection closed');
+    });
+  });
+  
+  // Start the HTTP server with WebSocket support
+  httpServer.listen(port, "127.0.0.1", () => {
     log(`serving on port ${port}`);
     
     // CRITICAL #5: Operational Hardening - Log successful startup

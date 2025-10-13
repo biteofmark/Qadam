@@ -65,8 +65,8 @@ export default function BlockVariantsPage() {
     <div className="min-h-screen bg-background">
       <Header />
       <main className="container mx-auto px-4 lg:px-6 py-8">
-        {/* Block Header */}
-        <div className="mb-8">
+        {/* Navigation */}
+        <div className="mb-6">
           <Button 
             variant="ghost" 
             onClick={() => setLocation("/")}
@@ -76,49 +76,56 @@ export default function BlockVariantsPage() {
             <i className="fas fa-arrow-left mr-2"></i>
             Назад к блокам
           </Button>
+        </div>
+
+        {/* Block Title Section */}
+        <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
+            <div className="h-20 w-20 rounded-xl bg-primary/10 flex items-center justify-center">
+              {block.name.includes('Физика') && <i className="fas fa-atom text-primary text-3xl"></i>}
+              {block.name.includes('Химия') && <i className="fas fa-dna text-accent text-3xl"></i>}
+              {block.name.includes('История') && <i className="fas fa-globe text-blue-800 text-3xl"></i>}
+            </div>
+          </div>
           
-          <div className="flex items-start space-x-4">
-            <div className="h-16 w-16 rounded-xl bg-primary/10 flex items-center justify-center">
-              {block.name.includes('Физика') && <i className="fas fa-atom text-primary text-2xl"></i>}
-              {block.name.includes('Химия') && <i className="fas fa-dna text-accent text-2xl"></i>}
-              {block.name.includes('История') && <i className="fas fa-globe text-yellow-500 text-2xl"></i>}
-            </div>
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold text-foreground mb-2">{block.name}</h1>
-              <p className="text-muted-foreground mb-4">
-                {block.name.includes('Физика') && "Комплексная подготовка по физике и математике с углубленным изучением ключевых тем"}
-                {block.name.includes('Химия') && "Интенсивная подготовка по химии и биологии для поступления в медицинские вузы"}
-                {block.name.includes('История') && "Комплексная подготовка по истории Казахстана и географии"}
-              </p>
-              <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                <span>
-                  <i className="fas fa-file-alt mr-1"></i>
-                  {variants.length} вариантов
-                </span>
-                <span>
-                  <i className="fas fa-clock mr-1"></i>
-                  240 минут
-                </span>
-                {block.hasCalculator && (
-                  <span>
-                    <i className="fas fa-calculator mr-1"></i>
-                    Калькулятор доступен
-                  </span>
-                )}
-                {block.hasPeriodicTable && (
-                  <span>
-                    <i className="fas fa-table mr-1"></i>
-                    Таблица Менделеева доступна
-                  </span>
-                )}
-              </div>
-            </div>
+          <h1 className="text-4xl font-bold text-foreground mb-4">{block.name}</h1>
+          
+          <p className="text-lg text-muted-foreground mb-6 max-w-2xl mx-auto">
+            {block.name.includes('Физика') && "Комплексная подготовка по физике и математике с углубленным изучением ключевых тем"}
+            {block.name.includes('Химия') && "Интенсивная подготовка по химии и биологии для поступления в медицинские вузы"}
+            {block.name.includes('История') && "Комплексная подготовка по истории Казахстана и географии"}
+          </p>
+          
+          <div className="flex justify-center items-center space-x-6 text-sm text-muted-foreground">
+            <span className="flex items-center">
+              <i className="fas fa-file-alt mr-2"></i>
+              {variants.length} {variants.length === 1 ? 'вариант' : variants.length < 5 ? 'варианта' : 'вариантов'}
+            </span>
+            <span className="flex items-center">
+              <i className="fas fa-clock mr-2"></i>
+              240 минут
+            </span>
+            {block.hasCalculator && (
+              <span className="flex items-center">
+                <i className="fas fa-calculator mr-2"></i>
+                Калькулятор
+              </span>
+            )}
+            {block.hasPeriodicTable && (
+              <span className="flex items-center">
+                <i className="fas fa-table mr-2"></i>
+                Таблица Менделеева
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Variants Grid */}
+        {/* Variants Section */}
         <div className="mb-8">
-          <h2 className="text-2xl font-semibold text-foreground mb-6">Выберите вариант для тестирования</h2>
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-foreground mb-2">Выберите вариант для тестирования</h2>
+            <p className="text-muted-foreground">Каждый вариант содержит уникальные задания для полноценной подготовки</p>
+          </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {variants.map((variant, index) => (
@@ -209,8 +216,8 @@ export default function BlockVariantsPage() {
               
               <div className="space-y-3">
                 <div className="flex items-start space-x-3">
-                  <div className="h-6 w-6 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <i className="fas fa-question-circle text-blue-500 text-xs"></i>
+                  <div className="h-6 w-6 rounded-full bg-blue-800/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <i className="fas fa-question-circle text-blue-800 text-xs"></i>
                   </div>
                   <div>
                     <p className="font-medium text-foreground">Навигация</p>

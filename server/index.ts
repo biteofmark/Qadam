@@ -349,7 +349,14 @@ async function cleanupExpiredFiles() {
   if (app.get("env") !== "development") {
     app.get('*', (req, res) => {
       const publicPath = path.resolve(__dirname, 'public');
-      res.sendFile(path.resolve(publicPath, 'index.html'));
+      const indexPath = path.resolve(publicPath, 'index.html');
+      
+      // Check if index.html exists
+      if (require('fs').existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(404).send('Application not built properly. Static files not found.');
+      }
     });
   }
 

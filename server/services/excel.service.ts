@@ -11,7 +11,9 @@ import {
 import { storage } from '../storage';
 
 export class ExcelService {
-  private static readonly STYLES = {
+  // NOTE: exceljs types are somewhat strict across versions; keep styles as `any` to avoid type mismatches
+  // while preserving runtime behavior. TODO: migrate to exact ExcelJS types later.
+  private static readonly STYLES: any = {
     header: {
       font: { bold: true, size: 14, color: { argb: 'FFFFFF' } },
       fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: '2563eb' } },
@@ -76,7 +78,7 @@ export class ExcelService {
           throw new Error(`Неподдерживаемый тип экспорта: ${type}`);
       }
 
-      return await workbook.xlsx.writeBuffer() as Buffer;
+  return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
 
     } catch (error) {
       throw error;
@@ -207,10 +209,10 @@ export class ExcelService {
       sheet.getCell(`B${rowNum}`).value = row[1];
       
       if (index === 0) {
-        sheet.getRow(rowNum).style = this.STYLES.subHeader;
+        ((sheet.getRow(rowNum) as any) as any).style = this.STYLES.subHeader as any;
       } else {
-        sheet.getCell(`A${rowNum}`).style = this.STYLES.data;
-        sheet.getCell(`B${rowNum}`).style = this.STYLES.data;
+        (sheet.getCell(`A${rowNum}`) as any).style = this.STYLES.data as any;
+        (sheet.getCell(`B${rowNum}`) as any).style = this.STYLES.data as any;
       }
     });
 
@@ -228,7 +230,7 @@ export class ExcelService {
     headers.forEach((header, index) => {
       const cell = sheet.getCell(1, index + 1);
       cell.value = header;
-      cell.style = this.STYLES.header;
+  (cell as any).style = this.STYLES.header as any;
     });
 
     // Data
@@ -243,13 +245,13 @@ export class ExcelService {
         subject.averageTimeSpent
       ];
 
-      // Apply styles
-      row.getCell(1).style = this.STYLES.data;
-      row.getCell(2).style = this.STYLES.number;
-      row.getCell(3).style = this.STYLES.percentage;
-      row.getCell(4).style = this.STYLES.number;
-      row.getCell(5).style = this.STYLES.number;
-      row.getCell(6).style = this.STYLES.number;
+  // Apply styles
+  (row.getCell(1) as any).style = this.STYLES.data as any;
+  (row.getCell(2) as any).style = this.STYLES.number as any;
+  (row.getCell(3) as any).style = this.STYLES.percentage as any;
+  (row.getCell(4) as any).style = this.STYLES.number as any;
+  (row.getCell(5) as any).style = this.STYLES.number as any;
+  (row.getCell(6) as any).style = this.STYLES.number as any;
     });
 
     // Auto-fit columns
@@ -313,7 +315,7 @@ export class ExcelService {
     results.forEach((result, index) => {
       const row = sheet.getRow(index + 2);
       row.values = [
-        new Date(result.completedAt),
+        new Date(result.completedAt || Date.now()),
         result.score,
         result.totalQuestions,
         result.percentage / 100,
@@ -366,7 +368,7 @@ export class ExcelService {
         isCurrentUser ? 'Вы' : `User-${ranking.userId.slice(-4)}`,
         ranking.totalScore,
         ranking.testsCompleted,
-        ranking.averagePercentage / 100
+  (ranking.averagePercentage ?? 0) / 100
       ];
 
       // Apply styles - highlight current user
@@ -374,11 +376,11 @@ export class ExcelService {
         { ...this.STYLES.data, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'e6f3ff' } } } :
         this.STYLES.data;
 
-      row.getCell(1).style = { ...style, alignment: { horizontal: 'center' } };
-      row.getCell(2).style = style;
-      row.getCell(3).style = { ...this.STYLES.number, fill: style.fill };
-      row.getCell(4).style = { ...this.STYLES.number, fill: style.fill };
-      row.getCell(5).style = { ...this.STYLES.percentage, fill: style.fill };
+  (row.getCell(1) as any).style = { ...style, alignment: { horizontal: 'center' } } as any;
+  (row.getCell(2) as any).style = style as any;
+  (row.getCell(3) as any).style = { ...this.STYLES.number, fill: style.fill } as any;
+  (row.getCell(4) as any).style = { ...this.STYLES.number, fill: style.fill } as any;
+  (row.getCell(5) as any).style = { ...this.STYLES.percentage, fill: style.fill } as any;
     });
 
     // Auto-fit columns
@@ -425,10 +427,10 @@ export class ExcelService {
       sheet.getCell(`B${rowNum}`).value = row[1];
       
       if (index === 0) {
-        sheet.getRow(rowNum).style = this.STYLES.subHeader;
+        ((sheet.getRow(rowNum) as any) as any).style = this.STYLES.subHeader as any;
       } else {
-        sheet.getCell(`A${rowNum}`).style = this.STYLES.data;
-        sheet.getCell(`B${rowNum}`).style = this.STYLES.data;
+        (sheet.getCell(`A${rowNum}`) as any).style = this.STYLES.data as any;
+        (sheet.getCell(`B${rowNum}`) as any).style = this.STYLES.data as any;
       }
     });
 

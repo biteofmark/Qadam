@@ -448,6 +448,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Build test data with correct flags to return for review
+      const reviewTestData: any[] = [];
+      for (const subject of subjects) {
+        const questions = await storage.getQuestionsBySubject(subject.id);
+        const questionsWithAnswers = [];
+        for (const question of questions) {
+          const answers = await storage.getAnswersByQuestion(question.id);
+          const answersWithFlag = answers.map(a => ({ id: a.id, text: a.text, isCorrect: !!a.isCorrect }));
+          questionsWithAnswers.push({ ...question, answers: answersWithFlag });
+        }
+        reviewTestData.push({ subject, questions: questionsWithAnswers });
+      }
+
       // Create test completion notification
       const variant = await storage.getVariant(variantId);
       if (variant) {
@@ -493,7 +506,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      res.status(201).json(result);
+      // Return created result plus full testData with correct flags and the user's answers
+      res.status(201).json({ result, testData: reviewTestData, userAnswers: answers });
     } catch (error) {
       res.status(400).json({ message: "Ошибка сохранения результата" });
     }

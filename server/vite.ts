@@ -77,10 +77,27 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  // Serve static files with cache control headers
+  app.use(express.static(distPath, {
+    maxAge: process.env.NODE_ENV === 'production' ? '1d' : 0,
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, path) => {
+      // Force no cache for HTML files to ensure updates are loaded
+      if (path.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+      }
+    }
+  }));
 
   // fall through to index.html if the file doesn't exist
   app.use("*", (_req, res) => {
+    // Set no-cache headers for index.html to ensure updates
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }

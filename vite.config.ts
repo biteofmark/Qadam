@@ -31,6 +31,14 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "client/dist"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Force new file names on each build to prevent caching issues
+        entryFileNames: `assets/[name]-[hash].js`,
+        chunkFileNames: `assets/[name]-[hash].js`,
+        assetFileNames: `assets/[name]-[hash].[ext]`
+      }
+    }
   },
   server: {
     fs: {

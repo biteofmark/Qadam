@@ -386,7 +386,9 @@ async function cleanupExpiredFiles() {
   });
   
   // Start the HTTP server with WebSocket support
-  httpServer.listen(port, "127.0.0.1", () => {
+  // Bind to 0.0.0.0 for Render deployment (required for external access)
+  const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1';
+  httpServer.listen(port, host, () => {
     log(`serving on port ${port}`);
     
     // CRITICAL #5: Operational Hardening - Log successful startup

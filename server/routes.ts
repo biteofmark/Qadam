@@ -1292,15 +1292,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const userId = req.user.id;
-      const username = req.user.username;
+      
+      // Import db from ./db
+      const { db } = await import('./db');
+      const { users } = await import('@shared/schema');
+      const { eq } = await import('drizzle-orm');
       
       // Update username to "admin" to grant admin privileges
-      const result = await storage.db.execute(
-        sql`UPDATE users SET username = 'admin' WHERE id = ${userId} RETURNING id, username, email`
-      );
+      const result = await db.update(users)
+        .set({ username: 'admin' })
+        .where(eq(users.id, userId))
+        .returning({ id: users.id, username: users.username, email: users.email });
       
-      if (result.rows.length > 0) {
-        res.json({ message: "You are now admin! Please re-login.", user: result.rows[0] });
+      if (result.length > 0) {
+        res.json({ message: "You are now admin! Please re-login with username 'admin'.", user: result[0] });
       } else {
         res.status(404).json({ message: "User not found" });
       }

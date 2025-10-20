@@ -86,6 +86,8 @@ export const questions = pgTable("questions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   subjectId: varchar("subject_id").notNull().references(() => subjects.id, { onDelete: "cascade" }),
   text: text("text").notNull(),
+  imageUrl: text("image_url"), // URL изображения для вопроса
+  solutionImageUrl: text("solution_image_url"), // URL изображения с решением (показывается после теста)
 });
 
 export const answers = pgTable("answers", {
@@ -103,6 +105,7 @@ export const testResults = pgTable("test_results", {
   totalQuestions: integer("total_questions").notNull(),
   percentage: real("percentage").notNull(),
   timeSpent: integer("time_spent").notNull(),
+  answers: jsonb("answers"),
   completedAt: timestamp("completed_at").defaultNow(),
 });
 

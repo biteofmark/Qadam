@@ -13,6 +13,7 @@ import { dirname } from 'path';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import cors from 'cors';
+import { setupAuth } from "./auth";
 
 declare module 'cors';
 
@@ -22,6 +23,9 @@ const __dirname = dirname(__filename);
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' ? true : 'http://localhost:3000',
@@ -325,6 +329,9 @@ async function cleanupExpiredFiles() {
       checksPerformed: ['database', 'environment_variables', 'object_storage', 'rate_limiting']
     });
 
+    // Setup authentication before registering routes
+    setupAuth(app);
+
     const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -338,7 +345,10 @@ async function cleanupExpiredFiles() {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
+  // Handle NODE_ENV with potential whitespace (Windows issue)
+  const isDevelopment = process.env.NODE_ENV?.trim() === "development";
+  
+  if (isDevelopment) {
     await setupVite(app, server);
   } else {
     serveStatic(app);
@@ -346,7 +356,7 @@ async function cleanupExpiredFiles() {
 
   // In production, static files are already served by serveStatic function
   // This fallback is only needed if serveStatic is not handling it properly
-  if (app.get("env") !== "development") {
+  if (process.env.NODE_ENV?.trim() !== "development") {
     app.get('*', (req, res) => {
       const publicPath = path.resolve(__dirname, 'public');
       const indexPath = path.resolve(publicPath, 'index.html');

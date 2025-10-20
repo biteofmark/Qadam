@@ -27,7 +27,7 @@ export default function PublicTestsPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
         {/* Header */}
-        <header className="bg-blue-800 backdrop-blur-md border-b border-blue-300 sticky top-0 z-50 shadow-lg">
+        <header className="bg-blue-500 backdrop-blur-md border-b border-blue-700 sticky top-0 z-50 shadow-lg">
           <div className="container mx-auto px-4 py-4">
             <div className="flex justify-between items-center">
               <div className="flex items-center space-x-6">
@@ -37,7 +37,7 @@ export default function PublicTestsPage() {
                   </div>
                   <div>
                     <h1 className="text-xl font-bold text-white">ProjectEnt</h1>
-                    <p className="text-sm text-blue-100">Система тестирования ЕНТ</p>
+                    <p className="text-sm text-blue-50">Система тестирования ЕНТ</p>
                   </div>
                 </div>
                 
@@ -62,7 +62,7 @@ export default function PublicTestsPage() {
                   </Button>
                 </Link>
                 <Link href="/auth">
-                  <Button className="bg-white/90 text-blue-800 hover:bg-white border border-white font-medium">
+                  <Button className="bg-white/90 text-blue-500 hover:bg-white border border-white font-medium">
                     Вход
                   </Button>
                 </Link>
@@ -86,7 +86,7 @@ export default function PublicTestsPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
         {/* Header */}
-        <header className="bg-blue-800 backdrop-blur-md border-b border-blue-300 sticky top-0 z-50 shadow-lg">
+        <header className="bg-blue-500 backdrop-blur-md border-b border-blue-700 sticky top-0 z-50 shadow-lg">
           <div className="container mx-auto px-4 py-4">
             <div className="flex justify-between items-center">
               <div className="flex items-center space-x-6">
@@ -96,7 +96,7 @@ export default function PublicTestsPage() {
                   </div>
                   <div>
                     <h1 className="text-xl font-bold text-white">ProjectEnt</h1>
-                    <p className="text-sm text-blue-100">Система тестирования ЕНТ</p>
+                    <p className="text-sm text-blue-50">Система тестирования ЕНТ</p>
                   </div>
                 </div>
                 
@@ -121,7 +121,7 @@ export default function PublicTestsPage() {
                   </Button>
                 </Link>
                 <Link href="/auth">
-                  <Button className="bg-white/90 text-blue-800 hover:bg-white border border-white font-medium">
+                  <Button className="bg-white/90 text-blue-500 hover:bg-white border border-white font-medium">
                     Вход
                   </Button>
                 </Link>
@@ -139,7 +139,7 @@ export default function PublicTestsPage() {
               Не удалось загрузить список тестов. Попробуйте позже.
             </p>
             <Link href="/">
-              <Button className="bg-blue-800 hover:bg-blue-700 text-white">
+              <Button className="bg-blue-500 hover:bg-blue-700 text-white">
                 Вернуться на главную
               </Button>
             </Link>
@@ -152,7 +152,7 @@ export default function PublicTestsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       {/* Header */}
-      <header className="bg-blue-800 backdrop-blur-md border-b border-blue-300 sticky top-0 z-50 shadow-lg">
+      <header className="bg-blue-500 backdrop-blur-md border-b border-blue-700 sticky top-0 z-50 shadow-lg">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-6">
@@ -162,7 +162,7 @@ export default function PublicTestsPage() {
                 </div>
                 <div>
                   <h1 className="text-xl font-bold text-white">ProjectEnt</h1>
-                  <p className="text-sm text-blue-100">Система тестирования ЕНТ</p>
+                  <p className="text-sm text-blue-50">Система тестирования ЕНТ</p>
                 </div>
               </div>
               
@@ -187,7 +187,7 @@ export default function PublicTestsPage() {
                 </Button>
               </Link>
               <Link href="/auth">
-                <Button className="bg-white/90 text-blue-800 hover:bg-white border border-white font-medium">
+                <Button className="bg-white/90 text-blue-500 hover:bg-white border border-white font-medium">
                   Вход
                 </Button>
               </Link>
@@ -231,7 +231,7 @@ export default function PublicTestsPage() {
                         Тестирование по предмету {block.name}
                       </CardDescription>
                     </div>
-                    <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                    <Badge variant="secondary" className="bg-blue-50 text-blue-500 dark:bg-blue-700 dark:text-blue-50">
                       Предмет
                     </Badge>
                   </div>
@@ -252,7 +252,7 @@ export default function PublicTestsPage() {
                   </div>
                   
                   <Link href="/auth">
-                    <Button className="w-full bg-blue-800 hover:bg-blue-700 text-white font-medium">
+                    <Button className="w-full bg-blue-500 hover:bg-blue-700 text-white font-medium">
                       Начать тест
                     </Button>
                   </Link>
@@ -273,12 +273,12 @@ export default function PublicTestsPage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link href="/auth">
-                <Button size="lg" className="bg-blue-800 hover:bg-blue-700 text-white font-medium px-8">
+                <Button size="lg" className="bg-blue-500 hover:bg-blue-700 text-white font-medium px-8">
                   Зарегистрироваться
                 </Button>
               </Link>
               <Link href="/public-ranking">
-                <Button size="lg" variant="outline" className="border-blue-800 text-blue-800 hover:bg-blue-50 font-medium px-8">
+                <Button size="lg" variant="outline" className="border-blue-500 text-blue-500 hover:bg-blue-50 font-medium px-8">
                   Посмотреть рейтинг
                 </Button>
               </Link>
@@ -289,3 +289,4 @@ export default function PublicTestsPage() {
     </div>
   );
 }
+

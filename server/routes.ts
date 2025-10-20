@@ -1,5 +1,8 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { insertBlockSchema, insertVariantSchema, insertSubjectSchema, insertQuestionSchema, insertAnswerSchema, insertTestResultSchema,
@@ -76,6 +79,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Setup authentication
   setupAuth(app);
+
+  // Configure multer for file uploads
+  const uploadDir = path.join(process.cwd(), 'uploads', 'question-images');
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+
+  const upload = multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => {
+        cb(null, uploadDir);
+      },
+      filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'question-' + uniqueSuffix + path.extname(file.originalname));
+      }
+    }),
+    limits: {
+      fileSize: 5 * 1024 * 1024, // 5MB limit
+    },
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Только изображения разрешены'));
+      }
+    }
+  });
+
+  // Image upload endpoint
+  app.post("/api/upload/question-image", requireAdmin, upload.single('image'), (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "Файл не загружен" });
+      }
+      
+      // Return the URL to access the uploaded file
+      const fileUrl = `/uploads/question-images/${req.file.filename}`;
+      res.json({ url: fileUrl });
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка загрузки файла" });
+    }
+  });
 
   // Public routes (no authentication required)
   app.get("/api/public/free-variants", async (req, res) => {
@@ -182,6 +228,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put("/api/variants/:id", requireAdmin, async (req, res) => {
+    try {
+      const validatedData = insertVariantSchema.parse(req.body);
+      const variant = await storage.updateVariant(req.params.id, validatedData);
+      if (!variant) {
+        return res.status(404).json({ message: "Вариант не найден" });
+      }
+      res.json(variant);
+    } catch (error) {
+      res.status(400).json({ message: "Ошибка обновления варианта" });
+    }
+  });
+
+  app.delete("/api/variants/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteVariant(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка удаления варианта" });
+    }
+  });
+
   // Subjects routes
   app.get("/api/variants/:variantId/subjects", async (req, res) => {
     try {
@@ -199,6 +267,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(subject);
     } catch (error) {
       res.status(400).json({ message: "Ошибка создания предмета" });
+    }
+  });
+
+  app.put("/api/subjects/:id", requireAdmin, async (req, res) => {
+    try {
+      const validatedData = insertSubjectSchema.parse(req.body);
+      const subject = await storage.updateSubject(req.params.id, validatedData);
+      if (!subject) {
+        return res.status(404).json({ message: "Предмет не найден" });
+      }
+      res.json(subject);
+    } catch (error) {
+      res.status(400).json({ message: "Ошибка обновления предмета" });
+    }
+  });
+
+  app.delete("/api/subjects/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteSubject(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка удаления предмета" });
     }
   });
 
@@ -222,6 +312,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put("/api/questions/:id", requireAdmin, async (req, res) => {
+    try {
+      const validatedData = insertQuestionSchema.parse(req.body);
+      const question = await storage.updateQuestion(req.params.id, validatedData);
+      if (!question) {
+        return res.status(404).json({ message: "Вопрос не найден" });
+      }
+      res.json(question);
+    } catch (error) {
+      res.status(400).json({ message: "Ошибка обновления вопроса" });
+    }
+  });
+
+  app.delete("/api/questions/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteQuestion(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка удаления вопроса" });
+    }
+  });
+
   // Answers routes
   app.get("/api/questions/:questionId/answers", async (req, res) => {
     try {
@@ -239,6 +351,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(answer);
     } catch (error) {
       res.status(400).json({ message: "Ошибка создания ответа" });
+    }
+  });
+
+  app.put("/api/answers/:id", requireAdmin, async (req, res) => {
+    try {
+      const validatedData = insertAnswerSchema.parse(req.body);
+      const answer = await storage.updateAnswer(req.params.id, validatedData);
+      if (!answer) {
+        return res.status(404).json({ message: "Ответ не найден" });
+      }
+      res.json(answer);
+    } catch (error) {
+      res.status(400).json({ message: "Ошибка обновления ответа" });
+    }
+  });
+
+  app.delete("/api/answers/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteAnswer(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка удаления ответа" });
     }
   });
 
@@ -340,7 +474,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         variantId,
         score: correctAnswers,
         totalQuestions,
-        percentage: Math.round(percentage * 100) / 100,
+        percentage: Math.round(percentage), // Исправлено: убрано лишнее умножение
         timeSpent,
         isGuestResult: true
       };
@@ -438,6 +572,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalQuestions,
         percentage,
         timeSpent,
+        answers,
       });
 
       const result = await storage.createTestResult(validatedData);
@@ -516,7 +651,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Return created result plus full testData with correct flags and the user's answers
-      res.status(201).json({ result, testData: reviewTestData, userAnswers: answers });
+      // Wrap in testData structure to match what frontend expects
+      const testDataResponse = {
+        variant: await storage.getVariant(variantId),
+        testData: reviewTestData
+      };
+      res.status(201).json({ result, testData: testDataResponse, userAnswers: answers });
     } catch (error) {
       res.status(400).json({ message: "Ошибка сохранения результата" });
     }
@@ -573,6 +713,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('[API] Error syncing offline tests:', error);
       res.status(500).json({ message: "Ошибка синхронизации офлайн тестов" });
+    }
+  });
+
+  // Get test result review data
+  app.get("/api/test-results/:resultId/review", requireAuth, async (req, res) => {
+    try {
+      const { resultId } = req.params;
+      
+      // Get test result and verify it belongs to the current user
+      const result = await storage.getTestResult(resultId);
+      if (!result) {
+        return res.status(404).json({ message: "Результат теста не найден" });
+      }
+      
+      if (result.userId !== req.user?.id) {
+        return res.status(403).json({ message: "Нет доступа к этому результату теста" });
+      }
+      
+      // Get variant and test data
+      const variant = await storage.getVariant(result.variantId);
+      if (!variant) {
+        return res.status(404).json({ message: "Вариант теста не найден" });
+      }
+      
+      // Get test data with correct answers - use same structure as POST /api/test-results
+      const subjects = await storage.getSubjectsByVariant(result.variantId);
+      const reviewTestData: any[] = [];
+      
+      for (const subject of subjects) {
+        const questions = await storage.getQuestionsBySubject(subject.id);
+        const questionsWithAnswers = [];
+        
+        for (const question of questions) {
+          const answers = await storage.getAnswersByQuestion(question.id);
+          const answersWithFlag = answers.map(a => ({ 
+            id: a.id, 
+            text: a.text, 
+            isCorrect: !!a.isCorrect 
+          }));
+          questionsWithAnswers.push({ ...question, answers: answersWithFlag });
+        }
+        
+        reviewTestData.push({ subject, questions: questionsWithAnswers });
+      }
+      
+      // Wrap in testData structure to match what frontend expects
+      const testDataResponse = {
+        variant,
+        testData: reviewTestData
+      };
+      
+      // Get user answers from the stored result
+      const userAnswers = result.answers || {};
+      
+      console.log('[API] Review data for result:', result.id, {
+        hasUserAnswers: !!result.answers,
+        userAnswersCount: Object.keys(userAnswers).length,
+        sampleUserAnswer: Object.entries(userAnswers)[0]
+      });
+      
+      res.json({ 
+        result, 
+        variant,
+        testData: testDataResponse, 
+        userAnswers 
+      });
+    } catch (error) {
+      console.error('[API] Error getting test review data:', error);
+      res.status(500).json({ message: "Ошибка получения данных для просмотра теста" });
     }
   });
 
@@ -1048,6 +1257,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Video proctoring has been fully removed from the application.
   // All related endpoints and handlers were deleted as part of the proctoring removal.
   
+  // Temporary endpoint to create admin user (remove in production)
+  app.post("/api/create-admin", async (req, res) => {
+    console.log('[API] Creating admin user...');
+    try {
+      // Check if admin already exists
+      const existingAdmin = await storage.getUserByUsername("admin");
+      if (existingAdmin) {
+        return res.json({ message: "Админ уже существует", user: { username: existingAdmin.username, email: existingAdmin.email } });
+      }
+      
+      // Import hashPassword from auth
+      const { hashPassword } = await import('./auth');
+      
+      // Create admin user
+      const adminUser = await storage.createUser({
+        username: "admin",
+        email: "admin@example.com",
+        password: await hashPassword("admin123")
+      });
+      
+      res.json({ message: "Админ создан успешно", user: { username: adminUser.username, email: adminUser.email } });
+    } catch (error) {
+      console.error('[API] Error creating admin:', error);
+      res.status(500).json({ message: "Ошибка создания админа" });
+    }
+  });
+  
+  // Admin user management endpoints
+  app.get("/api/admin/users", requireAdmin, async (req, res) => {
+    try {
+      console.log('[API] Fetching all users...');
+      const users = await storage.getAllUsers();
+      console.log('[API] Users found:', users.length);
+      res.json(users);
+    } catch (error) {
+      console.error('[API] Error fetching users:', error);
+      res.status(500).json({ message: "Ошибка получения пользователей" });
+    }
+  });
+
+  app.delete("/api/admin/users/:userId", requireAdmin, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      
+      // Prevent deletion of admin user
+      const user = await storage.getUserById(userId);
+      if (user?.username === "admin") {
+        return res.status(403).json({ message: "Нельзя удалить администратора" });
+      }
+      
+      await storage.deleteUser(userId);
+      res.status(204).send();
+    } catch (error) {
+      console.error('[API] Error deleting user:', error);
+      res.status(500).json({ message: "Ошибка удаления пользователя" });
+    }
+  });
+
+  app.post("/api/admin/users/:userId/reset-password", requireAdmin, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const newPassword = await storage.resetUserPassword(userId);
+      res.json({ newPassword });
+    } catch (error) {
+      console.error('[API] Error resetting password:', error);
+      res.status(500).json({ message: "Ошибка сброса пароля" });
+    }
+  });
+
+  // Copy subjects between variants endpoint
+  app.post("/api/admin/copy-subjects", requireAdmin, async (req, res) => {
+    try {
+      const { sourceVariantId, targetVariantId, subjectIds } = req.body;
+      
+      if (!sourceVariantId || !targetVariantId || !subjectIds || !Array.isArray(subjectIds)) {
+        return res.status(400).json({ 
+          message: "Требуются sourceVariantId, targetVariantId и массив subjectIds" 
+        });
+      }
+
+      console.log('[API] Copying subjects:', { sourceVariantId, targetVariantId, subjectIds });
+      
+      const copiedSubjects = await storage.copySubjects(sourceVariantId, targetVariantId, subjectIds);
+      
+      res.json({ 
+        message: "Предметы успешно скопированы",
+        copiedSubjects: copiedSubjects.length,
+        subjects: copiedSubjects
+      });
+    } catch (error) {
+      console.error('[API] Error copying subjects:', error);
+      res.status(500).json({ message: "Ошибка копирования предметов" });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

@@ -1,7 +1,7 @@
-import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useState, useEffect, useRef, memo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface PeriodicTableProps {
   isOpen: boolean;
@@ -18,8 +18,26 @@ interface Element {
   category: string;
 }
 
-export default function PeriodicTable({ isOpen, onClose }: PeriodicTableProps) {
+function PeriodicTable({ isOpen, onClose }: PeriodicTableProps) {
+  // Инициализируем состояние напрямую без useEffect
   const [selectedElement, setSelectedElement] = useState<Element | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  // Обновляем ref напрямую БЕЗ useEffect
+  onCloseRef.current = onClose;
+
+  // ОТЛАДКА: логируем каждый рендер
+  // console.log('🧪 PeriodicTable render - isOpen:', isOpen);
+
+  // Закрытие по ESC
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCloseRef.current();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen]);
 
   // Simplified periodic table data (first few periods)
   const elements: Element[] = [
@@ -61,7 +79,7 @@ export default function PeriodicTable({ isOpen, onClose }: PeriodicTableProps) {
       "alkaline-earth": "bg-orange-100 hover:bg-orange-200 text-orange-800 border-orange-300",
       "transition-metal": "bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border-yellow-300",
       "post-transition": "bg-green-100 hover:bg-green-200 text-green-800 border-green-300",
-      "metalloid": "bg-blue-50 hover:bg-blue-100 text-blue-800 border-blue-800",
+      "metalloid": "bg-blue-50 hover:bg-blue-100 text-blue-500 border-blue-500",
       "nonmetal": "bg-purple-100 hover:bg-purple-200 text-purple-800 border-purple-300",
       "halogen": "bg-pink-100 hover:bg-pink-200 text-pink-800 border-pink-300",
       "noble-gas": "bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-300",
@@ -99,8 +117,8 @@ export default function PeriodicTable({ isOpen, onClose }: PeriodicTableProps) {
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto" data-testid="periodic-table-dialog">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onCloseRef.current()}>
+      <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
             <i className="fas fa-table text-primary"></i>
@@ -204,3 +222,5 @@ export default function PeriodicTable({ isOpen, onClose }: PeriodicTableProps) {
     </Dialog>
   );
 }
+
+export default memo(PeriodicTable);

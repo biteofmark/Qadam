@@ -25,42 +25,97 @@ export default function ResultsPage() {
   const [location] = useLocation();
   const [, setLocation] = useLocation();
   
-  // Get navigation state passed from TestPage
-  const navigationState = window.history.state as NavigationState | null;
+  // Get test result data from sessionStorage first, then fallback
+  const getStoredData = () => {
+    try {
+      const stored = sessionStorage.getItem('testResultData');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed;
+      }
+    } catch (error) {
+      console.error('Error reading stored test data:', error);
+    }
+    return null;
+  };
   
-  // Fallback query to get the latest test result if no state is passed
+  const storedData = getStoredData();
+  
+  // НЕ очищаем sessionStorage сразу - данные могут понадобиться при обновлении страницы
+  // sessionStorage будет очищен при начале нового теста
+  
+  // Fallback query to get the latest test result if no stored data
   const { data: latestResult, isLoading } = useQuery<TestResult>({
     queryKey: ["/api/profile/latest-result"],
-    enabled: !navigationState,
+    enabled: !storedData,
   });
 
-  // Use the navigation state result or fallback to latest result
-  const testResult = navigationState?.result || latestResult;
-  const testData = navigationState?.testData;
-  const userAnswers = navigationState?.userAnswers;
+  // Use stored data or fallback to latest result
+  const testResult = storedData?.result || latestResult;
+  const testData = storedData?.testData;
+  const userAnswers = storedData?.userAnswers;
+
+  // Fix percentage calculation if it's invalid
+  const getValidPercentage = (result: TestResult | undefined) => {
+    if (!result) return 0;
+    
+    // Убедимся что score и totalQuestions - числа
+    const score = typeof result.score === 'number' ? result.score : 0;
+    const totalQuestions = typeof result.totalQuestions === 'number' && result.totalQuestions > 0 ? result.totalQuestions : 1;
+    
+    const calculatedPercentage = (score / totalQuestions) * 100;
+    const resultPercentage = result.percentage;
+    
+    // Use the calculated percentage if the stored one is invalid
+    if (typeof resultPercentage !== 'number' || isNaN(resultPercentage) || resultPercentage == null) {
+      return Math.round(calculatedPercentage);
+    }
+    
+    return Math.round(resultPercentage);
+  };
+
+  const validPercentage = getValidPercentage(testResult);
 
   // Calculate subject breakdown from test data if available
   const calculateSubjectBreakdown = () => {
-    if (!testData || !userAnswers) return [];
+    // Если нет данных теста или ответов пользователя, возвращаем пустой массив
+    if (!testData || !testData.testData || !userAnswers) {
+            return [];
+    }
     
     return testData.testData.map(subject => {
       const totalQuestions = subject.questions.length;
-      const answeredQuestions = subject.questions.filter(q => userAnswers[q.id]).length;
-      // For now, we approximate the correct answers based on overall percentage
-      const approximateCorrect = Math.round((testResult!.percentage / 100) * totalQuestions);
+      
+      // Подсчитываем правильные ответы для каждого предмета
+      let correctAnswers = 0;
+      let answeredQuestions = 0;
+      
+      subject.questions.forEach(question => {
+        const userAnswerId = userAnswers[question.id];
+        if (userAnswerId) {
+          answeredQuestions++;
+          // Ищем правильные ответы в вопросе
+          if (question.answers && Array.isArray(question.answers)) {
+            const selectedAnswer = question.answers.find(a => a.id === userAnswerId);
+            if (selectedAnswer && selectedAnswer.isCorrect === true) {
+              correctAnswers++;
+            }
+          }
+        }
+      });
       
       return {
         name: subject.subject.name,
-        correct: approximateCorrect,
+        correct: correctAnswers,
         total: totalQuestions,
-        percentage: totalQuestions > 0 ? Math.round((approximateCorrect / totalQuestions) * 100) : 0,
+        answered: answeredQuestions,
+        percentage: totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0,
       };
     });
   };
 
   const subjects = calculateSubjectBreakdown();
-
-  if (!navigationState && isLoading) {
+  if (!storedData && isLoading) {
     return (
       <div className="min-h-screen bg-background">
         <Header />
@@ -82,9 +137,9 @@ export default function ResultsPage() {
         <Header />
         <main className="container mx-auto px-4 lg:px-6 py-8">
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-foreground mb-4">Результаты не найдены</h1>
-            <p className="text-muted-foreground mb-6">
-              Не удалось получить результаты теста. Возможно, вы перешли на эту страницу напрямую.
+            <h1 className="text-2xl font-bold text-foreground mb-4">Нәтижелер табылмады</h1>
+            <p className="text-muted-foreground mb-4">
+              Тест нәтижелерін алу мүмкін болмады. Сіз осы бетке тікелей кірген шығарсыз.
             </p>
             <Button onClick={() => setLocation("/")} data-testid="button-back-home">
               Вернуться на главную
@@ -96,19 +151,22 @@ export default function ResultsPage() {
     );
   }
 
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
+  const formatTime = (seconds: number | undefined) => {
+    const validSeconds = typeof seconds === 'number' && !isNaN(seconds) ? seconds : 0;
+    const hours = Math.floor(validSeconds / 3600);
+    const minutes = Math.floor((validSeconds % 3600) / 60);
     return `${hours}ч ${minutes}м`;
   };
 
   const getScoreColor = (percentage: number) => {
+    if (typeof percentage !== 'number' || isNaN(percentage)) return "text-muted-foreground";
     if (percentage >= 80) return "text-accent";
     if (percentage >= 60) return "text-yellow-600";
     return "text-destructive";
   };
 
   const getScoreBadgeVariant = (percentage: number) => {
+    if (typeof percentage !== 'number' || isNaN(percentage)) return "secondary";
     if (percentage >= 80) return "default";
     if (percentage >= 60) return "secondary";
     return "destructive";
@@ -128,37 +186,37 @@ export default function ResultsPage() {
               <div>
                 <h1 className="text-3xl font-bold text-foreground">Тест завершен!</h1>
                 <p className="text-muted-foreground">
-                  Ваши результаты сохранены и учтены в общем рейтинге
+                  Сіздің нәтижелеріңіз сақталды және жалпы рейтингте ескерілді
                 </p>
               </div>
             </div>
             <ExportDialog 
               defaultType="TEST_REPORT"
-              title="Экспорт результатов"
-              description="Выберите формат для экспорта результатов теста"
+              title="Нәтижелерді экспорттау"
+              description="Тест нәтижелерін экспорттау форматын таңдаңыз"
             />
           </div>
 
           {/* Overall Results */}
           <Card>
             <CardHeader className="text-center pb-4">
-              <CardTitle className="text-2xl">Общие результаты</CardTitle>
+              <CardTitle className="text-2xl">Жалпы нәтижелер</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="text-center space-y-2">
-                <div className={`text-6xl font-bold ${getScoreColor(testResult.percentage)}`}>
-                  {Math.round(testResult.percentage)}%
+                <div className={`text-6xl font-bold ${getScoreColor(validPercentage)}`}>
+                  {validPercentage}%
                 </div>
                 <div className="text-muted-foreground">
-                  {testResult.score} из {testResult.totalQuestions} правильных ответов
+                  {testResult.totalQuestions || 0} ішінен {testResult.score || 0} дұрыс жауап
                 </div>
                 <Badge 
-                  variant={getScoreBadgeVariant(testResult.percentage)}
+                  variant={getScoreBadgeVariant(validPercentage)}
                   className="text-sm px-3 py-1"
                   data-testid="badge-result-grade"
                 >
-                  {testResult.percentage >= 80 ? "Отлично" : 
-                   testResult.percentage >= 60 ? "Хорошо" : "Нужно подучить"}
+                  {validPercentage >= 80 ? "Отлично" : 
+                   validPercentage >= 60 ? "Хорошо" : "Нужно подучить"}
                 </Badge>
               </div>
 
@@ -179,13 +237,13 @@ export default function ResultsPage() {
                   </div>
                   <div className="text-sm text-muted-foreground">Точность</div>
                   <div className="text-xl font-semibold text-foreground" data-testid="text-accuracy">
-                    {Math.round(testResult.percentage)}%
+                    {validPercentage}%
                   </div>
                 </div>
                 
                 <div className="text-center">
-                  <div className="h-12 w-12 mx-auto rounded-lg bg-blue-800/10 flex items-center justify-center mb-2">
-                    <i className="fas fa-trophy text-blue-800"></i>
+                  <div className="h-12 w-12 mx-auto rounded-lg bg-blue-500/10 flex items-center justify-center mb-2">
+                    <i className="fas fa-trophy text-blue-500"></i>
                   </div>
                   <div className="text-sm text-muted-foreground">Баллы</div>
                   <div className="text-xl font-semibold text-foreground" data-testid="text-score">
@@ -199,7 +257,7 @@ export default function ResultsPage() {
           {/* Subject Results */}
           <Card>
             <CardHeader>
-              <CardTitle>Результаты по предметам</CardTitle>
+              <CardTitle>Пәндер бойынша нәтижелер</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {subjects.length > 0 ? (
@@ -218,7 +276,7 @@ export default function ResultsPage() {
                       <div>
                         <h3 className="font-medium text-foreground">{subject.name}</h3>
                         <p className="text-sm text-muted-foreground">
-                          {subject.correct} из {subject.total} правильных
+                          {subject.total} ішінен {subject.correct} дұрыс
                         </p>
                       </div>
                     </div>
@@ -243,7 +301,7 @@ export default function ResultsPage() {
                 <div className="text-center py-8 text-muted-foreground">
                   <i className="fas fa-info-circle text-2xl mb-2"></i>
                   <p>Детализация по предметам недоступна</p>
-                  <p className="text-sm">Результаты отображаются только при прохождении теста в полном объеме</p>
+                  <p className="text-sm">Нәтижелер тек тестті толық өткенде ғана көрсетіледі</p>
                 </div>
               )}
             </CardContent>
@@ -255,13 +313,13 @@ export default function ResultsPage() {
               <CardTitle>Рекомендации</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {testResult.percentage >= 80 ? (
+              {validPercentage >= 80 ? (
                 <div className="flex items-start space-x-3">
                   <div className="h-6 w-6 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                     <i className="fas fa-check text-accent text-xs"></i>
                   </div>
                   <div>
-                    <p className="font-medium text-foreground">Отличный результат!</p>
+                    <p className="font-medium text-foreground">Тамаша нәтиже!</p>
                     <p className="text-sm text-muted-foreground">
                       Вы хорошо подготовлены по этому блоку. Продолжайте решать тесты для закрепления знаний.
                     </p>
@@ -277,8 +335,8 @@ export default function ResultsPage() {
                       <p className="font-medium text-foreground">Рекомендации по улучшению</p>
                       <p className="text-sm text-muted-foreground">
                         {subjects.length > 0 
-                          ? "Обратите внимание на предметы с низким результатом и повторите материал."
-                          : "Рекомендуем повторить материал и пройти тест еще раз для улучшения результата."
+                          ? "Нәтижесі төмен пәндерге назар аударып, материалды қайталаңыз."
+                          : "Материалды қайталап, нәтижені жақсарту үшін тестті тағы бір рет тапсыруды ұсынамыз."
                         }
                       </p>
                     </div>
@@ -294,7 +352,7 @@ export default function ResultsPage() {
                         <div>
                           <p className="font-medium text-foreground">Подтяните {subject.name}</p>
                           <p className="text-sm text-muted-foreground">
-                            Результат {subject.percentage}% - рекомендуем дополнительно изучить материал.
+                            Нәтиже {subject.percentage}% - материалды қосымша оқып үйренуді ұсынамыз.
                           </p>
                         </div>
                       </div>
@@ -312,7 +370,7 @@ export default function ResultsPage() {
               data-testid="button-view-profile"
             >
               <i className="fas fa-user mr-2"></i>
-              Посмотреть профиль
+              Профильді қарау
             </Button>
             
             <Button 
@@ -339,22 +397,26 @@ export default function ResultsPage() {
             ) && (
               <Button
                 variant="ghost"
-                onClick={async () => {
-                  try {
-                    // If we already have testData and userAnswers (navigation state), use them
-                    if (testData && userAnswers) {
-                      const variantId = (testResult as any).variantId || (testData.variant && (testData.variant as any).id);
-                      if (variantId) setLocation(`/test/${variantId}`, { state: { review: true, testData, userAnswers } });
-                      return;
-                    }
-
-                    // Otherwise fetch review data from API using testResult id
-                    const res = await fetch(`/api/test-results/${(testResult as any).id}/review`, { credentials: 'include' });
-                    if (!res.ok) throw new Error('Fail');
+                onClick={async () => {                  try {
+                    // ВСЕГДА используем API для режима просмотра, чтобы получить isCorrect флаги
+                    console.log('🌐 FETCHING FROM API for review mode');                    const res = await fetch(`/api/test-results/${(testResult as any).id}/review`, { credentials: 'include' });
+                    if (!res.ok) throw new Error('API failed');
                     const payload = await res.json();
+                    
+                    console.log('🌐 API SUCCESS - First question answers from API:', 
+                      payload.testData?.testData?.[0]?.questions?.[0]?.answers?.map((a: any) => ({
+                        id: a.id,
+                        text: a.text.substring(0, 20),
+                        isCorrect: a.isCorrect,
+                        hasIsCorrect: 'isCorrect' in a
+                      }))
+                    );
+                    
                     const variantId = payload.result?.variantId || payload.variant?.id;
                     if (variantId) {
-                      setLocation(`/test/${variantId}`, { state: { review: true, testData: payload.testData, userAnswers: payload.userAnswers } });
+                      // payload.testData уже имеет правильную структуру { variant, testData }
+
+                      setLocation(`/test/${variantId}?review=true`, { state: { review: true, testData: payload.testData, userAnswers: payload.userAnswers } });
                     }
                   } catch (e) {
                     // fallback: notify and do nothing
@@ -366,7 +428,7 @@ export default function ResultsPage() {
                 data-testid="button-review-test"
               >
                 <i className="fas fa-eye mr-2"></i>
-                Посмотреть тест
+                Тестті қарау
               </Button>
             )}
           </div>
@@ -376,3 +438,4 @@ export default function ResultsPage() {
     </div>
   );
 }
+

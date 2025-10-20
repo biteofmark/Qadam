@@ -57,5 +57,6 @@ Thumbs.db
 
 # Project specific
 server/public/
+uploads/
 vite.config.ts.*
 *.tar.gz

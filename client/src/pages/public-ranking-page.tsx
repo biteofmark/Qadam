@@ -54,7 +54,7 @@ export default function PublicRankingPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
         {/* Header */}
-        <header className="bg-blue-800 backdrop-blur-md border-b border-blue-300 sticky top-0 z-50 shadow-lg">
+        <header className="bg-blue-500 backdrop-blur-md border-b border-blue-700 sticky top-0 z-50 shadow-lg">
           <div className="container mx-auto px-4 py-4">
             <div className="flex justify-between items-center">
               <div className="flex items-center space-x-3">
@@ -63,7 +63,7 @@ export default function PublicRankingPage() {
                 </div>
                 <div>
                   <h1 className="text-xl font-bold text-white">ProjectEnt</h1>
-                  <p className="text-sm text-blue-100">Система тестирования ЕНТ</p>
+                  <p className="text-sm text-blue-50">Система тестирования ЕНТ</p>
                 </div>
               </div>
               <div className="flex space-x-3">
@@ -73,7 +73,7 @@ export default function PublicRankingPage() {
                   </Button>
                 </Link>
                 <Link href="/auth">
-                  <Button className="bg-white/90 text-blue-800 hover:bg-white border border-white font-medium">
+                  <Button className="bg-white/90 text-blue-500 hover:bg-white border border-white font-medium">
                     Вход
                   </Button>
                 </Link>
@@ -99,7 +99,7 @@ export default function PublicRankingPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       {/* Header */}
-      <header className="bg-blue-800 backdrop-blur-md border-b border-blue-300 sticky top-0 z-50 shadow-lg">
+      <header className="bg-blue-500 backdrop-blur-md border-b border-blue-700 sticky top-0 z-50 shadow-lg">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-3">
@@ -108,7 +108,7 @@ export default function PublicRankingPage() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-white">ProjectEnt</h1>
-                <p className="text-sm text-blue-100">Система тестирования ЕНТ</p>
+                <p className="text-sm text-blue-50">Система тестирования ЕНТ</p>
               </div>
             </div>
             <div className="flex space-x-3">
@@ -118,7 +118,7 @@ export default function PublicRankingPage() {
                 </Button>
               </Link>
               <Link href="/auth">
-                <Button className="bg-white/90 text-blue-800 hover:bg-white border border-white font-medium">
+                <Button className="bg-white/90 text-blue-500 hover:bg-white border border-white font-medium">
                   Вход
                 </Button>
               </Link>
@@ -142,7 +142,7 @@ export default function PublicRankingPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
           <Card>
             <CardContent className="p-6 text-center">
-              <Users className="h-12 w-12 text-blue-800 mx-auto mb-4" />
+              <Users className="h-12 w-12 text-blue-500 mx-auto mb-4" />
               <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
                 {displayStats.totalUsers.toLocaleString()}
               </div>
@@ -152,7 +152,7 @@ export default function PublicRankingPage() {
           
           <Card>
             <CardContent className="p-6 text-center">
-              <BookOpen className="h-12 w-12 text-blue-800 mx-auto mb-4" />
+              <BookOpen className="h-12 w-12 text-blue-500 mx-auto mb-4" />
               <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
                 {displayStats.totalTests.toLocaleString()}
               </div>
@@ -162,7 +162,7 @@ export default function PublicRankingPage() {
           
           <Card>
             <CardContent className="p-6 text-center">
-              <TrendingUp className="h-12 w-12 text-blue-800 mx-auto mb-4" />
+              <TrendingUp className="h-12 w-12 text-blue-500 mx-auto mb-4" />
               <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
                 {displayStats.averageScore.toFixed(1)}%
               </div>
@@ -248,7 +248,7 @@ export default function PublicRankingPage() {
                     variant={sortBy === 'totalScore' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setSortBy('totalScore')}
-                    className={sortBy === 'totalScore' ? 'bg-blue-800 hover:bg-blue-900' : ''}
+                    className={sortBy === 'totalScore' ? 'bg-blue-500 hover:bg-blue-700' : ''}
                   >
                     📊 Баллы
                   </Button>
@@ -256,7 +256,7 @@ export default function PublicRankingPage() {
                     variant={sortBy === 'averagePercentage' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setSortBy('averagePercentage')}
-                    className={sortBy === 'averagePercentage' ? 'bg-blue-800 hover:bg-blue-900' : ''}
+                    className={sortBy === 'averagePercentage' ? 'bg-blue-500 hover:bg-blue-700' : ''}
                   >
                     📈 Процент
                   </Button>
@@ -264,7 +264,7 @@ export default function PublicRankingPage() {
                     variant={sortBy === 'testsCompleted' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setSortBy('testsCompleted')}
-                    className={sortBy === 'testsCompleted' ? 'bg-blue-800 hover:bg-blue-900' : ''}
+                    className={sortBy === 'testsCompleted' ? 'bg-blue-500 hover:bg-blue-700' : ''}
                   >
                     📝 Тесты
                   </Button>
@@ -277,7 +277,7 @@ export default function PublicRankingPage() {
                   <div 
                     key={user.userId} 
                     className={`flex items-center justify-between p-4 rounded-lg transition-colors ${
-                      index < 3 ? 'bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800' : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+                      index < 3 ? 'bg-blue-50 dark:bg-blue-950/20 border border-blue-500 dark:border-blue-500' : 'hover:bg-gray-50 dark:hover:bg-gray-800'
                     }`}
                   >
                     <div className="flex items-center space-x-4">
@@ -285,13 +285,13 @@ export default function PublicRankingPage() {
                         index === 0 ? "bg-yellow-500" :
                         index === 1 ? "bg-gray-500" :
                         index === 2 ? "bg-orange-500" :
-                        "bg-blue-800"
+                        "bg-blue-500"
                       }`}>
                         {index + 1}
                       </div>
                       
                       <Avatar className="h-12 w-12">
-                        <AvatarFallback className="bg-blue-100 text-blue-800 font-medium">
+                        <AvatarFallback className="bg-blue-50 text-blue-500 font-medium">
                           {user.username.charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
@@ -308,7 +308,7 @@ export default function PublicRankingPage() {
                     
                     <div className="text-right">
                       <div className={`text-2xl font-bold ${
-                        sortBy === 'totalScore' ? 'text-blue-800' : 'text-gray-900 dark:text-white'
+                        sortBy === 'totalScore' ? 'text-blue-500' : 'text-gray-900 dark:text-white'
                       }`}>
                         {user.totalScore}
                       </div>
@@ -316,7 +316,7 @@ export default function PublicRankingPage() {
                         <Badge 
                           variant="outline" 
                           className={`text-xs ${
-                            sortBy === 'averagePercentage' ? 'border-blue-800 text-blue-800' : ''
+                            sortBy === 'averagePercentage' ? 'border-blue-500 text-blue-500' : ''
                           }`}
                         >
                           {user.averagePercentage.toFixed(1)}%
@@ -324,7 +324,7 @@ export default function PublicRankingPage() {
                         <Badge 
                           variant="secondary" 
                           className={`text-xs ${
-                            sortBy === 'testsCompleted' ? 'border-blue-800 text-blue-800 bg-blue-50' : ''
+                            sortBy === 'testsCompleted' ? 'border-blue-500 text-blue-500 bg-blue-50' : ''
                           }`}
                         >
                           {user.testsCompleted} тестов
@@ -347,7 +347,7 @@ export default function PublicRankingPage() {
             Зарегистрируйтесь и начните проходить тесты ЕНТ
           </p>
           <Link href="/auth">
-            <Button size="lg" className="bg-blue-800 text-white hover:bg-blue-900">
+            <Button size="lg" className="bg-blue-500 text-white hover:bg-blue-700">
               Зарегистрироваться бесплатно
             </Button>
           </Link>
@@ -356,3 +356,4 @@ export default function PublicRankingPage() {
     </div>
   );
 }
+

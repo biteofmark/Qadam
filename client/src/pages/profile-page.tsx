@@ -45,10 +45,10 @@ export default function ProfilePage() {
 
   // Calculate user's position in ranking
   const getUserRankingPosition = () => {
-    if (!profileData?.ranking || !rankingsData) return "Пройдите тест";
+    if (!profileData?.ranking || !rankingsData) return "Тестті тапсырыңыз";
     
     const userTotalScore = profileData.ranking.totalScore;
-    if (!userTotalScore) return "Пройдите тест";
+    if (!userTotalScore) return "Тестті тапсырыңыз";
     
     // Sort rankings by totalScore descending and find user position
     const sortedRankings = rankingsData
@@ -85,12 +85,12 @@ export default function ProfilePage() {
       apiRequest("PUT", "/api/notification-settings", settings),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notification-settings"] });
-      toast({ title: "Настройки уведомлений сохранены" });
+      toast({ title: "Хабарландыру баптаулары сақталды" });
     },
     onError: () => {
       toast({ 
         title: "Ошибка", 
-        description: "Не удалось сохранить настройки",
+        description: "Баптауларды сақтау мүмкін болмады",
         variant: "destructive" 
       });
     },
@@ -190,11 +190,11 @@ export default function ProfilePage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Место в рейтинге</p>
+                  <p className="text-sm font-medium text-muted-foreground">Рейтингтегі орын</p>
                   <p className="text-2xl font-bold text-foreground">{stats.ranking}</p>
                 </div>
-                <div className="h-12 w-12 rounded-full bg-blue-800/10 flex items-center justify-center">
-                  <i className="fas fa-trophy text-blue-800"></i>
+                <div className="h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center">
+                  <i className="fas fa-trophy text-blue-500"></i>
                 </div>
               </div>
             </CardContent>
@@ -204,11 +204,11 @@ export default function ProfilePage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Время изучения</p>
+                  <p className="text-sm font-medium text-muted-foreground">Оқу уақыты</p>
                   <p className="text-2xl font-bold text-foreground">{stats.studyTime}</p>
                 </div>
-                <div className="h-12 w-12 rounded-full bg-blue-800/10 flex items-center justify-center">
-                  <i className="fas fa-clock text-blue-800"></i>
+                <div className="h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center">
+                  <i className="fas fa-clock text-blue-500"></i>
                 </div>
               </div>
             </CardContent>
@@ -217,16 +217,16 @@ export default function ProfilePage() {
 
         <Tabs defaultValue="results" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="results" data-testid="tab-results">Результаты тестов</TabsTrigger>
-            <TabsTrigger value="progress" data-testid="tab-progress">Прогресс по предметам</TabsTrigger>
-            <TabsTrigger value="achievements" data-testid="tab-achievements">Достижения</TabsTrigger>
-            <TabsTrigger value="settings" data-testid="tab-settings">Настройки</TabsTrigger>
+            <TabsTrigger value="results" data-testid="tab-results">Тест нәтижелері</TabsTrigger>
+            <TabsTrigger value="progress" data-testid="tab-progress">Пәндер бойынша прогресс</TabsTrigger>
+            <TabsTrigger value="achievements" data-testid="tab-achievements">Жетістіктер</TabsTrigger>
+            <TabsTrigger value="settings" data-testid="tab-settings">Баптаулар</TabsTrigger>
           </TabsList>
 
           <TabsContent value="results" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>История тестирования</CardTitle>
+                <CardTitle>Тестілеу тарихы</CardTitle>
               </CardHeader>
               <CardContent>
                 {profileData?.testResults && profileData.testResults.length > 0 ? (
@@ -269,7 +269,7 @@ export default function ProfilePage() {
                     </div>
                     <p className="text-muted-foreground">Пока нет завершенных тестов</p>
                     <p className="text-sm text-muted-foreground mt-2">
-                      Начните тестирование, чтобы увидеть свои результаты здесь
+                      Нәтижелерді көру үшін тестілеуді бастаңыз
                     </p>
                   </div>
                 )}
@@ -280,7 +280,7 @@ export default function ProfilePage() {
           <TabsContent value="progress" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Прогресс по предметам</CardTitle>
+                <CardTitle>Пәндер бойынша прогресс</CardTitle>
               </CardHeader>
               <CardContent>
                 {profileData?.subjectProgress && profileData.subjectProgress.length > 0 ? (
@@ -325,7 +325,7 @@ export default function ProfilePage() {
                     <div className="h-16 w-16 mx-auto rounded-full bg-muted flex items-center justify-center mb-4">
                       <i className="fas fa-chart-line text-muted-foreground text-xl"></i>
                     </div>
-                    <p className="text-muted-foreground">Нет данных о прогрессе</p>
+                    <p className="text-muted-foreground">Прогресс деректері жоқ</p>
                     <p className="text-sm text-muted-foreground mt-2">
                       Пройдите несколько тестов, чтобы увидеть статистику по предметам
                     </p>
@@ -434,7 +434,7 @@ export default function ProfilePage() {
           <TabsContent value="settings" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Настройки уведомлений</CardTitle>
+                <CardTitle>Хабарландыру баптаулары</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 {settingsLoading ? (
@@ -585,7 +585,7 @@ export default function ProfilePage() {
 
                     {/* Reminder Settings */}
                     <div>
-                      <h3 className="text-lg font-medium mb-3">Настройки напоминаний</h3>
+                      <h3 className="text-lg font-medium mb-3">Еске салу баптаулары</h3>
                       <div className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-2">

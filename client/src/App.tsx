@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "./hooks/use-auth";
 import { ThemeProvider } from "./components/theme-provider";
+import ScreenshotProtection from "./components/ScreenshotProtection";
 import NotFound from "@/pages/not-found";
 import HomePage from "@/pages/home-page";
 import PublicHomePage from "@/pages/public-home-page";
@@ -41,6 +42,15 @@ const PageSkeleton = () => (
   </div>
 );
 
+// Стабильные компоненты-обёртки (вынесены за пределы Router чтобы не пересоздавались)
+const DashboardComponent = () => <HomePage />;
+const BlockVariantsComponent = () => <BlockVariantsPage />;
+const TestPageComponent = () => <TestPage />;
+const ResultsComponent = () => <ResultsPage />;
+const ProfileComponent = () => <ProfilePage />;
+const NotificationsComponent = () => <NotificationsPage />;
+const RankingComponent = () => <RankingPage />;
+
 function Router() {
   return (
     <Switch>
@@ -50,15 +60,15 @@ function Router() {
       <Route path="/public-tests" component={PublicTestsPage} />
       <Route path="/about" component={AboutPage} />
       <Route path="/auth" component={AuthPage} />
-      <Route path="/public-test/:variantId" component={() => <TestPage />} />
+      <Route path="/public-test/:variantId" component={TestPageComponent} />
       
       {/* Protected routes */}
-      <ProtectedRoute path="/dashboard" component={() => <HomePage />} />
-      <ProtectedRoute path="/block/:blockId" component={() => <BlockVariantsPage />} />
-      <ProtectedRoute path="/test/:variantId" component={() => <TestPage />} />
-      <ProtectedRoute path="/results" component={() => <ResultsPage />} />
-      <ProtectedRoute path="/profile" component={() => <ProfilePage />} />
-      <ProtectedRoute path="/notifications" component={() => <NotificationsPage />} />
+      <ProtectedRoute path="/dashboard" component={DashboardComponent} />
+      <ProtectedRoute path="/block/:blockId" component={BlockVariantsComponent} />
+      <ProtectedRoute path="/test/:variantId" component={TestPageComponent} />
+      <ProtectedRoute path="/results" component={ResultsComponent} />
+      <ProtectedRoute path="/profile" component={ProfileComponent} />
+      <ProtectedRoute path="/notifications" component={NotificationsComponent} />
       <ProtectedRoute path="/analytics" component={() => (
         <Suspense fallback={<PageSkeleton />}>
           <AnalyticsPage />
@@ -69,7 +79,7 @@ function Router() {
           <AdminPage />
         </Suspense>
       )} />
-      <ProtectedRoute path="/ranking" component={() => <RankingPage />} />
+      <ProtectedRoute path="/ranking" component={RankingComponent} />
       
       <Route component={NotFound} />
     </Switch>
@@ -82,8 +92,11 @@ function App() {
       <AuthProvider>
         <ThemeProvider>
           <TooltipProvider>
-            <Toaster />
-            <Router />
+            <ScreenshotProtection />
+            <div className="content-protected">
+              <Toaster />
+              <Router />
+            </div>
           </TooltipProvider>
         </ThemeProvider>
       </AuthProvider>

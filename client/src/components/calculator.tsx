@@ -1,17 +1,40 @@
-import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useState, useEffect, useRef, memo } from "react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface CalculatorProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export default function Calculator({ isOpen, onClose }: CalculatorProps) {
+function Calculator({ isOpen, onClose }: CalculatorProps) {
+  // Инициализируем состояние напрямую без useEffect
   const [display, setDisplay] = useState("0");
   const [previousValue, setPreviousValue] = useState<number | null>(null);
   const [operation, setOperation] = useState<string | null>(null);
   const [waitingForNewValue, setWaitingForNewValue] = useState(false);
+  const onCloseRef = useRef(onClose);
+
+  // Обновляем ref напрямую БЕЗ useEffect
+  onCloseRef.current = onClose;
+
+  // ОТЛАДКА: логируем каждый рендер
+  // console.log('🧮 Calculator render - isOpen:', isOpen);
+
+  // Закрытие по ESC
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCloseRef.current();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen]);
+
+  // Предотвращаем всплытие события клика на модальном окне
+  const handleModalClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
 
   const inputNumber = (num: string) => {
     if (waitingForNewValue) {
@@ -135,8 +158,8 @@ export default function Calculator({ isOpen, onClose }: CalculatorProps) {
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md" data-testid="calculator-dialog">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onCloseRef.current()}>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
             <i className="fas fa-calculator text-primary"></i>
@@ -236,3 +259,5 @@ export default function Calculator({ isOpen, onClose }: CalculatorProps) {
     </Dialog>
   );
 }
+
+export default memo(Calculator);

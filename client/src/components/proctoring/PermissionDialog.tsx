@@ -73,7 +73,7 @@ export default function PermissionDialog({
       case "error":
         return <XCircleIcon className="h-6 w-6 text-red-500" />;
       default:
-        return <VideoIcon className="h-6 w-6 text-blue-800" />;
+        return <VideoIcon className="h-6 w-6 text-blue-500" />;
     }
   };
 
@@ -116,7 +116,7 @@ export default function PermissionDialog({
             </h4>
             <div className="space-y-2">
               <div className="flex items-center space-x-3 p-2 rounded-lg bg-gray-50 dark:bg-gray-800">
-                <VideoIcon className="h-5 w-5 text-blue-800" />
+                <VideoIcon className="h-5 w-5 text-blue-500" />
                 <div>
                   <p className="text-sm font-medium">Доступ к камере</p>
                   <p className="text-xs text-gray-600 dark:text-gray-400">

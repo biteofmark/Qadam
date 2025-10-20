@@ -32,8 +32,8 @@ export default function AuthPage() {
     
     if (!loginForm.username || !loginForm.password) {
       toast({
-        title: "Ошибка",
-        description: "Заполните все поля",
+        title: "Қателік",
+        description: "Барлық өрістерді толтырыңыз",
         variant: "destructive",
       });
       return;
@@ -51,8 +51,8 @@ export default function AuthPage() {
     
     if (!registerForm.username || !registerForm.email || !registerForm.password || !registerForm.confirmPassword) {
       toast({
-        title: "Ошибка",
-        description: "Заполните все поля",
+        title: "Қателік",
+        description: "Барлық өрістерді толтырыңыз",
         variant: "destructive",
       });
       return;
@@ -60,8 +60,8 @@ export default function AuthPage() {
 
     if (registerForm.password !== registerForm.confirmPassword) {
       toast({
-        title: "Ошибка",
-        description: "Пароли не совпадают",
+        title: "Қателік",
+        description: "Құпия сөздер сәйкес емес",
         variant: "destructive",
       });
       return;
@@ -69,8 +69,8 @@ export default function AuthPage() {
 
     if (registerForm.username.length < 5) {
       toast({
-        title: "Ошибка",
-        description: "Имя пользователя должно быть не менее 5 символов",
+        title: "Қателік",
+        description: "Пайдаланушы аты кемінде 5 таңбадан тұруы керек",
         variant: "destructive",
       });
       return;
@@ -78,8 +78,8 @@ export default function AuthPage() {
 
     if (registerForm.password.length < 8) {
       toast({
-        title: "Ошибка",
-        description: "Пароль должен быть не менее 8 символов",
+        title: "Қателік",
+        description: "Құпия сөз кемінде 8 таңбадан тұруы керек",
         variant: "destructive",
       });
       return;
@@ -89,8 +89,8 @@ export default function AuthPage() {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(registerForm.email)) {
       toast({
-        title: "Ошибка",
-        description: "Введите корректный email адрес",
+        title: "Қателік",
+        description: "Дұрыс email мекенжайын енгізіңіз",
         variant: "destructive",
       });
       return;
@@ -147,12 +147,6 @@ export default function AuthPage() {
               </div>
               <span className="text-muted-foreground">Рейтинговая система</span>
             </div>
-            <div className="flex items-center space-x-3">
-              <div className="h-6 w-6 rounded-full bg-accent flex items-center justify-center">
-                <i className="fas fa-check text-accent-foreground text-xs"></i>
-              </div>
-              <span className="text-muted-foreground">Инструменты: калькулятор, таблица Менделеева</span>
-            </div>
           </div>
         </div>
 
@@ -167,7 +161,7 @@ export default function AuthPage() {
                 onClick={() => setIsLogin(true)}
                 data-testid="button-switch-login"
               >
-                Вход
+                Кіру
               </Button>
               <Button
                 variant={!isLogin ? "default" : "ghost"}
@@ -176,31 +170,31 @@ export default function AuthPage() {
                 onClick={() => setIsLogin(false)}
                 data-testid="button-switch-register"
               >
-                Регистрация
+                Тіркелу
               </Button>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {isLogin ? (
               <form onSubmit={handleLogin} className="space-y-4" data-testid="form-login">
-                <CardTitle>Войти в систему</CardTitle>
+                <CardTitle>Жүйеге кіру</CardTitle>
                 <div className="space-y-2">
-                  <Label htmlFor="login-username">Имя пользователя</Label>
+                  <Label htmlFor="login-username">Пайдаланушы аты</Label>
                   <Input
                     id="login-username"
                     type="text"
-                    placeholder="Введите имя пользователя"
+                    placeholder="Пайдаланушы атын енгізіңіз"
                     value={loginForm.username}
                     onChange={(e) => setLoginForm(prev => ({ ...prev, username: e.target.value }))}
                     data-testid="input-login-username"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="login-password">Пароль</Label>
+                  <Label htmlFor="login-password">Құпия сөз</Label>
                   <Input
                     id="login-password"
                     type="password"
-                    placeholder="Введите пароль"
+                    placeholder="Құпия сөзді енгізіңіз"
                     value={loginForm.password}
                     onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
                     data-testid="input-login-password"
@@ -212,24 +206,24 @@ export default function AuthPage() {
                   disabled={loginMutation.isPending}
                   data-testid="button-login-submit"
                 >
-                  {loginMutation.isPending ? "Вход..." : "Войти"}
+                  {loginMutation.isPending ? "Кіру..." : "Кіру"}
                 </Button>
               </form>
             ) : (
               <form onSubmit={handleRegister} className="space-y-4" data-testid="form-register">
-                <CardTitle>Создать аккаунт</CardTitle>
+                <CardTitle>Аккаунт жасау</CardTitle>
                 <div className="space-y-2">
-                  <Label htmlFor="register-username">Имя пользователя</Label>
+                  <Label htmlFor="register-username">Пайдаланушы аты</Label>
                   <Input
                     id="register-username"
                     type="text"
-                    placeholder="Минимум 5 символов"
+                    placeholder="Кемінде 5 таңба"
                     value={registerForm.username}
                     onChange={(e) => setRegisterForm(prev => ({ ...prev, username: e.target.value }))}
                     data-testid="input-register-username"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Только буквы и цифры, от 5 до 20 символов
+                    Тек әріптер мен сандар, 5-тен 20 таңбаға дейін
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -244,25 +238,25 @@ export default function AuthPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="register-password">Пароль</Label>
+                  <Label htmlFor="register-password">Құпия сөз</Label>
                   <Input
                     id="register-password"
                     type="password"
-                    placeholder="Минимум 8 символов"
+                    placeholder="Кемінде 8 таңба"
                     value={registerForm.password}
                     onChange={(e) => setRegisterForm(prev => ({ ...prev, password: e.target.value }))}
                     data-testid="input-register-password"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Минимум 8 символов, должен содержать буквы и цифры
+                    Кемінде 8 таңба, әріптер мен сандарды қамтуы керек
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="register-confirm-password">Подтвердите пароль</Label>
+                  <Label htmlFor="register-confirm-password">Құпия сөзді растаңыз</Label>
                   <Input
                     id="register-confirm-password"
                     type="password"
-                    placeholder="Повторите пароль"
+                    placeholder="Құпия сөзді қайталаңыз"
                     value={registerForm.confirmPassword}
                     onChange={(e) => setRegisterForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
                     data-testid="input-register-confirm-password"
@@ -274,7 +268,7 @@ export default function AuthPage() {
                   disabled={registerMutation.isPending}
                   data-testid="button-register-submit"
                 >
-                  {registerMutation.isPending ? "Регистрация..." : "Зарегистрироваться"}
+                  {registerMutation.isPending ? "Тіркелу..." : "Тіркелу"}
                 </Button>
               </form>
             )}

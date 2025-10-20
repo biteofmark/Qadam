@@ -20,12 +20,12 @@ export default function Header() {
   const [location, setLocation] = useLocation();
 
   const navigation = [
-    { href: "/", label: "Главная", icon: "fas fa-home" },
-    { href: "/profile", label: "Мой профиль", icon: "fas fa-user" },
-    { href: "/notifications", label: "Уведомления", icon: "fas fa-bell" },
+    { href: "/", label: "Басты бет", icon: "fas fa-home" },
+    { href: "/profile", label: "Менің профилім", icon: "fas fa-user" },
+    { href: "/notifications", label: "Хабарландырулар", icon: "fas fa-bell" },
     { href: "/analytics", label: "Аналитика", icon: "fas fa-chart-line" },
     { href: "/ranking", label: "Рейтинг", icon: "fas fa-trophy" },
-    { href: "/admin", label: "Админка", icon: "fas fa-cog", adminOnly: true },
+    { href: "/admin", label: "Әкімші панелі", icon: "fas fa-cog", adminOnly: true },
   ];
 
   const handleLogout = () => {
@@ -77,7 +77,7 @@ export default function Header() {
             data-testid="button-theme-toggle-mobile"
           >
             <i className={`fas ${theme === "light" ? "fa-moon" : "fa-sun"} mr-2`}></i>
-            {theme === "light" ? "Темная тема" : "Светлая тема"}
+            {theme === "light" ? "Қараңғы тақырып" : "Ашық тақырып"}
           </Button>
         </div>
       </SheetContent>
@@ -85,7 +85,7 @@ export default function Header() {
   );
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-blue-300 bg-blue-800 backdrop-blur supports-[backdrop-filter]:bg-blue-800/95 shadow-lg">
+    <header className="sticky top-0 z-50 w-full border-b border-blue-700 bg-blue-500 backdrop-blur supports-[backdrop-filter]:bg-blue-500/95 shadow-lg">
       <div className="container mx-auto px-4 lg:px-6">
         <div className="flex h-16 items-center justify-between">
           {/* Logo and Brand */}
@@ -114,7 +114,7 @@ export default function Header() {
                   className={`text-sm font-medium transition-colors ${
                     isActive(item.href) 
                       ? "text-white bg-white/20" 
-                      : "text-blue-100 hover:text-white hover:bg-white/10"
+                      : "text-blue-50 hover:text-white hover:bg-white/10"
                   }`}
                   onClick={() => setLocation(item.href)}
                   data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
@@ -132,7 +132,7 @@ export default function Header() {
               variant="ghost" 
               size="icon"
               onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-              className="hidden md:inline-flex text-blue-100 hover:text-white hover:bg-white/10"
+              className="hidden md:inline-flex text-blue-50 hover:text-white hover:bg-white/10"
               data-testid="button-theme-toggle"
             >
               <i className={`fas ${theme === "light" ? "fa-moon" : "fa-sun"}`}></i>
@@ -154,7 +154,7 @@ export default function Header() {
                       </AvatarFallback>
                     </Avatar>
                     <span className="hidden md:block font-medium text-white">{user.username}</span>
-                    <i className="fas fa-chevron-down text-xs text-blue-100"></i>
+                    <i className="fas fa-chevron-down text-xs text-blue-50"></i>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
@@ -191,13 +191,13 @@ export default function Header() {
                     data-testid="dropdown-logout"
                   >
                     <i className="fas fa-sign-out-alt mr-2"></i>
-                    Выйти
+                    Шығу
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button onClick={() => setLocation("/auth")} className="bg-white text-blue-800 hover:bg-blue-50" data-testid="button-login">
-                Войти
+              <Button onClick={() => setLocation("/auth")} className="bg-white text-blue-500 hover:bg-blue-50" data-testid="button-login">
+                Кіру
               </Button>
             )}
             

@@ -304,8 +304,8 @@ export default function RankingPage() {
             
             <Card>
               <CardContent className="p-6 text-center">
-                <div className="h-12 w-12 mx-auto rounded-full bg-blue-800/10 flex items-center justify-center mb-3">
-                  <i className="fas fa-file-alt text-blue-800"></i>
+                <div className="h-12 w-12 mx-auto rounded-full bg-blue-500/10 flex items-center justify-center mb-3">
+                  <i className="fas fa-file-alt text-blue-500"></i>
                 </div>
                 <div className="text-2xl font-bold text-foreground">
                   {rankings.reduce((sum, r) => sum + r.testsCompleted, 0)}

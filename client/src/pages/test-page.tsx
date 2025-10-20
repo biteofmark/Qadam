@@ -1,30 +1,45 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { useRenderDebug } from "@/utils/render-debug";
 // Header intentionally not rendered on test page to avoid navigation during a running test
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import TestTimer from "@/components/test-timer";
-import Calculator from "@/components/calculator";
-import PeriodicTable from "@/components/periodic-table";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import TestToolsModal from "@/components/test-tools-modal";
 // Proctoring removed
 import { queryClient } from "@/lib/queryClient";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useOfflineSync } from "@/hooks/use-offline-sync";
 import NetworkStatus from "@/components/network-status";
+import MobileTestNavigation from "@/components/mobile-test-navigation";
+import { useIsMobile } from "@/hooks/use-mobile";
 import type { Variant, Block } from "@shared/schema";
 import type { ActiveTest } from "@/lib/offline-db";
 
 interface TestQuestion {
   id: string;
   text: string;
+  imageUrl?: string; // URL изображения вопроса
+  solutionImageUrl?: string; // URL изображения решения (показывается после теста)
   answers: Array<{
     id: string;
     text: string;
+    isCorrect?: boolean; // Добавляем поле для режима просмотра
   }>;
 }
 
@@ -48,28 +63,54 @@ export default function TestPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const { syncStatus, saveDraftTest, saveCompletedTest, getOfflineTest } = useOfflineSync();
+  const isMobile = useIsMobile();
   const variantId = params?.variantId || publicParams?.variantId;
   const isPublicTest = !!publicMatch;
 
+  // Get state from location (review mode) - вычисляем ОДИН РАЗ при монтировании
+  const { isReviewMode, reviewTestData, reviewUserAnswers } = useMemo(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const locationState = history.state as any;
+    const reviewMode = locationState?.review === true || urlParams.get('review') === 'true';
+    
+    return {
+      isReviewMode: reviewMode,
+      reviewTestData: locationState?.testData,
+      reviewUserAnswers: locationState?.userAnswers
+    };
+  }, []);
+
+  // Упрощенная проверка режима просмотра
+
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
+  const [userAnswers, setUserAnswers] = useState<Record<string, string>>(
+    isReviewMode ? (reviewUserAnswers || {}) : {}
+  );
   const [showCalculator, setShowCalculator] = useState(false);
   const [showPeriodicTable, setShowPeriodicTable] = useState(false);
   const [timeLeft, setTimeLeft] = useState(240 * 60); // 240 minutes in seconds
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [testStartTime] = useState(Date.now());
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showSubmitDialog, setShowSubmitDialog] = useState(false);
 
-  // Small helper: Timer display component
-  function TimerDisplay({ seconds }: { seconds: number }) {
-    const mm = Math.floor(seconds / 60).toString().padStart(2, '0');
-    const ss = (seconds % 60).toString().padStart(2, '0');
-    const isUrgent = seconds <= 30 * 60; // <=30 minutes
-    return (
-      <div className={`text-2xl font-mono ${isUrgent ? 'text-red-600' : 'text-black'}`}>
-        {mm}:{ss}
-      </div>
-    );
-  }
+  // Мемоизированные callback для управления модальными окнами
+  const handleCloseCalculator = useCallback(() => {
+    setShowCalculator(false);
+  }, []);
+  
+  const handleClosePeriodicTable = useCallback(() => {
+    setShowPeriodicTable(false);
+  }, []);
+
+  const handleOpenCalculator = useCallback(() => {
+    setShowCalculator(true);
+  }, []);
+
+  const handleOpenPeriodicTable = useCallback(() => {
+    setShowPeriodicTable(true);
+  }, []);
 
   // Small helper: numeric pagination (simple)
   function Pagination({ total, current, onChange }: { total: number; current: number; onChange: (i: number) => void }) {
@@ -111,21 +152,45 @@ export default function TestPage() {
     );
   }
 
-  // Timer ticking effect: decrement timeLeft every second
+  // Clear previous test results when starting new test
   useEffect(() => {
-    const t = setInterval(() => {
+    if (!isReviewMode && variantId) {
+      sessionStorage.removeItem('testResultData');
+    }
+  }, [variantId, isReviewMode]);
+
+  // Timer ticking effect: decrement timeLeft every second
+  const handleTimeUpRef = useRef<() => void>();
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerStartedRef = useRef(false);
+  
+  useEffect(() => {
+    if (timerStartedRef.current) return;
+    if (isReviewMode) return;
+    
+    timerStartedRef.current = true;
+    
+    timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(t);
-          // call time up handler on next tick
-          handleTimeUp();
-          return 0;
+        const newValue = prev <= 1 ? 0 : prev - 1;
+        
+        if (newValue === 0 && timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+          setTimeout(() => handleTimeUpRef.current?.(), 0);
         }
-        return prev - 1;
+        
+        return newValue;
       });
     }, 1000);
-    return () => clearInterval(t);
-  }, []);
+    
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [isReviewMode]);
 
   // pagination window size intentionally unified across devices
 
@@ -133,8 +198,22 @@ export default function TestPage() {
 
   const { data: testData, isLoading } = useQuery<TestData>({
     queryKey: [isPublicTest ? "/api/public/variants" : "/api/variants", variantId, "test"],
-    enabled: !!variantId,
+    enabled: !!variantId && !isReviewMode,
+    initialData: undefined, // НЕ используем initialData в режиме просмотра
   });
+
+  // В режиме просмотра используем ТОЛЬКО данные из reviewTestData (API)
+  const finalTestData = useMemo(() => {
+    return isReviewMode ? reviewTestData : testData;
+  }, [isReviewMode, reviewTestData, testData]);
+
+  // МЕМОИЗАЦИЯ: вычисляем allQuestions только когда finalTestData меняется
+  const allQuestions = useMemo(() => {
+    if (!finalTestData || !finalTestData.testData) return [];
+    return finalTestData.testData.flatMap(subject => 
+      subject.questions.map(q => ({ ...q, subjectName: subject.subject.name }))
+    );
+  }, [finalTestData]);
 
   // Proctoring removed
 
@@ -211,16 +290,25 @@ export default function TestPage() {
           setLocation("/", { 
             state: { 
               guestResult: result,
-              testData, 
+              testData: finalTestData, 
               userAnswers,
               showResults: true
             } 
           });
         }, 0);
       } else {
-        setTimeout(() => {
-          setLocation("/results", { state: { result, testData, userAnswers } });
-        }, 0);
+        // Сохраняем данные в sessionStorage для страницы результатов
+        // Используем reviewTestData из ответа сервера (содержит флаги isCorrect)
+        const responseData = result as any;
+        const reviewTestData = responseData.testData || finalTestData;
+        const reviewUserAnswers = responseData.userAnswers || userAnswers;
+        
+        sessionStorage.setItem('testResultData', JSON.stringify({ 
+          result: responseData.result || result, 
+          testData: reviewTestData, 
+          userAnswers: reviewUserAnswers 
+        }));
+        setLocation("/results");
       }
     },
     onError: () => {
@@ -232,27 +320,67 @@ export default function TestPage() {
     },
   });
 
-  // Auto-save answers every 30 seconds (offline-first)
+  // Auto-save answers every 30 seconds (offline-first) - НЕ в режиме просмотра
+  // Используем refs чтобы избежать пересоздания useEffect при изменении данных
+  const userAnswersRef = useRef(userAnswers);
+  const timeLeftRef = useRef(timeLeft);
+  const testDataRef = useRef(testData);
+  const finalTestDataRef = useRef(finalTestData);
+  const getOfflineTestRef = useRef(getOfflineTest);
+  const toastRef = useRef(toast);
+  
+  // Обновляем refs после каждого рендера (это безопасно, не вызывает ре-рендер)
+  // ВРЕМЕННО ОТКЛЮЧЕНО для отладки
+  /*
   useEffect(() => {
+    if (renderCount.current > 10) {
+      console.log('📌 Refs updated');
+    }
+    userAnswersRef.current = userAnswers;
+    timeLeftRef.current = timeLeft;
+    testDataRef.current = testData;
+    finalTestDataRef.current = finalTestData;
+    getOfflineTestRef.current = getOfflineTest;
+    toastRef.current = toast;
+  });
+  */
+  
+  // Обновляем refs напрямую в render phase (это безопасно)
+  userAnswersRef.current = userAnswers;
+  timeLeftRef.current = timeLeft;
+  testDataRef.current = testData;
+  finalTestDataRef.current = finalTestData;
+  getOfflineTestRef.current = getOfflineTest;
+  toastRef.current = toast;
+  
+  useEffect(() => {
+    if (isReviewMode) {
+      return; // Не сохраняем в режиме просмотра
+    }
+    
     const interval = setInterval(async () => {
-      if (variantId && testData && Object.keys(userAnswers).length > 0) {
+      const currentAnswers = userAnswersRef.current;
+      const currentTestData = testDataRef.current;
+      const currentFinalTestData = finalTestDataRef.current;
+      const currentTimeLeft = timeLeftRef.current;
+      
+      if (variantId && currentTestData && Object.keys(currentAnswers).length > 0) {
         try {
           const activeTest: ActiveTest = {
             id: `${variantId}-${user?.id}`,
             variantId,
             variant: {
-              ...testData.variant,
-              block: {
-                ...testData.variant.block,
-                hasCalculator: testData.variant.block.hasCalculator ?? false,
-                hasPeriodicTable: testData.variant.block.hasPeriodicTable ?? false,
+              ...currentTestData.variant,
+              block: currentFinalTestData.variant.block || {
+                hasCalculator: false,
+                hasPeriodicTable: false,
               }
             },
-            testData: testData.testData,
-            userAnswers,
+            testData: currentFinalTestData.testData,
+            userAnswers: currentAnswers,
             startedAt: testStartTime,
             lastSavedAt: Date.now(),
-            timeSpent: (240 * 60) - timeLeft,
+            timeSpent: (240 * 60) - currentTimeLeft,
             isCompleted: false,
             syncStatus: 'pending',
             syncAttempts: 0
@@ -261,31 +389,35 @@ export default function TestPage() {
           await saveDraftTest(activeTest);
           
           // Fallback to localStorage
-          localStorage.setItem(`test_${variantId}_answers`, JSON.stringify(userAnswers));
+          localStorage.setItem(`test_${variantId}_answers`, JSON.stringify(currentAnswers));
         } catch (error) {
           console.error('Failed to save test draft:', error);
           // Fallback to localStorage only
-          localStorage.setItem(`test_${variantId}_answers`, JSON.stringify(userAnswers));
+          localStorage.setItem(`test_${variantId}_answers`, JSON.stringify(currentAnswers));
         }
       }
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [variantId, userAnswers, testData, timeLeft, user?.id, testStartTime, saveDraftTest]);
+  }, [variantId, user?.id, testStartTime, saveDraftTest, isReviewMode]);
 
-  // Load saved answers on component mount (offline-first)
+  // Load saved answers on component mount (offline-first) - НЕ в режиме просмотра
   useEffect(() => {
+    if (isReviewMode) {
+      return; // Не загружаем сохраненные данные в режиме просмотра
+    }
+    
     if (variantId && user?.id) {
       const loadSavedTest = async () => {
         try {
-          // Try offline database first
-          const offlineTest = await getOfflineTest(`${variantId}-${user.id}`);
+          // Try offline database first - используем ref чтобы не зависеть от getOfflineTest
+          const offlineTest = await getOfflineTestRef.current(`${variantId}-${user.id}`);
           if (offlineTest) {
             setUserAnswers(offlineTest.userAnswers);
             setTimeLeft(Math.max(0, 240 * 60 - offlineTest.timeSpent));
             setIsOfflineMode(true);
             
-            toast({
+            toastRef.current({
               title: "Тест восстановлен",
               description: "Продолжаем с сохраненного места",
             });
@@ -309,10 +441,31 @@ export default function TestPage() {
       
       loadSavedTest();
     }
-  }, [variantId, user?.id, getOfflineTest, toast]);
+  }, [variantId, user?.id, isReviewMode]);
+
+  // Определяем handleTimeUp ДО любых условных return (правило хуков)
+  const handleTimeUp = useCallback(() => {
+    toast({
+      title: "Время вышло",
+      description: "Тест автоматически завершен",
+    });
+    submitTestMutation.mutate(userAnswers);
+  }, [toast, submitTestMutation, userAnswers]);
+  
+  // Обновляем ref при изменении handleTimeUp
+  useEffect(() => {
+    handleTimeUpRef.current = handleTimeUp;
+  }, [handleTimeUp]);
+  
+  // Redirect to home if no match - ВАЖНО: в useEffect чтобы не вызывать setState в render phase!
+  useEffect(() => {
+    if ((!match && !publicMatch) || !variantId) {
+      setLocation("/");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match, publicMatch, variantId]); // НЕ включаем setLocation в dependencies!
 
   if ((!match && !publicMatch) || !variantId) {
-    setLocation("/");
     return null;
   }
 
@@ -337,12 +490,22 @@ export default function TestPage() {
     );
   }
 
-  if (!testData || !testData.variant || !testData.variant.block || !testData.testData) {
+  // В режиме просмотра проверяем только базовые поля (variant.block отсутствует в API)
+  const hasRequiredData = isReviewMode 
+    ? !!(finalTestData && finalTestData.variant && finalTestData.testData)
+    : !!(finalTestData && finalTestData.variant && finalTestData.variant.block && finalTestData.testData);
+  
+  if (!hasRequiredData) {
+
+    
     return (
       <div className="min-h-screen bg-background">
         <main className="container mx-auto px-4 lg:px-6 py-8">
           <div className="text-center">
             <h1 className="text-2xl font-bold text-foreground mb-4">Тест не найден</h1>
+            <p className="text-muted-foreground mb-4">
+              {isReviewMode ? 'Ошибка в режиме просмотра результатов' : 'Ошибка загрузки теста'}
+            </p>
             <Button onClick={() => setLocation("/")} data-testid="button-back-home">
               Вернуться на главную
             </Button>
@@ -352,11 +515,36 @@ export default function TestPage() {
     );
   }
 
-  const allQuestions = testData.testData.flatMap(subject => 
-    subject.questions.map(q => ({ ...q, subjectName: subject.subject.name }))
-  );
+  // Краткое логирование данных в режиме просмотра
+  if (isReviewMode && testData) {
+  }
+
   const currentQuestion = allQuestions[currentQuestionIndex];
   const progress = ((currentQuestionIndex + 1) / allQuestions.length) * 100;
+
+  // Вычисляем номер вопроса внутри предмета
+  const getQuestionNumberInSubject = (globalIndex: number) => {
+    let questionCount = 0;
+    let currentSubjectIndex = 0;
+    
+    for (let i = 0; i < finalTestData.testData.length; i++) {
+      const subjectQuestionCount = finalTestData.testData[i].questions.length;
+      
+      if (globalIndex < questionCount + subjectQuestionCount) {
+        return {
+          questionNumber: globalIndex - questionCount + 1,
+          subjectIndex: i,
+          subjectName: finalTestData.testData[i].subject.name
+        };
+      }
+      
+      questionCount += subjectQuestionCount;
+    }
+    
+    return { questionNumber: 1, subjectIndex: 0, subjectName: '' };
+  };
+
+  const currentQuestionInfo = getQuestionNumberInSubject(currentQuestionIndex);
 
   const handleAnswerSelect = (questionId: string, answerId: string) => {
     setUserAnswers(prev => ({
@@ -366,42 +554,61 @@ export default function TestPage() {
   };
 
   const handleSubmitTest = () => {
-    if (Object.keys(userAnswers).length < allQuestions.length) {
-      toast({
-        title: "Внимание",
-        description: `Вы ответили только на ${Object.keys(userAnswers).length} из ${allQuestions.length} вопросов. Завершить тест?`,
-        variant: "destructive",
-      });
-    }
-    
+    setShowSubmitDialog(true);
+  };
+
+  const confirmSubmitTest = () => {
+    setShowSubmitDialog(false);
     submitTestMutation.mutate(userAnswers);
   };
 
-  const handleTimeUp = () => {
-    toast({
-      title: "Время вышло",
-      description: "Тест автоматически завершен",
-    });
-    submitTestMutation.mutate(userAnswers);
-  };
+  // Mobile view with MobileTestNavigation
+  if (isMobile) {
+    return (
+        <div className="min-h-screen bg-background">
+          <MobileTestNavigation
+            questions={allQuestions.map(q => ({
+              id: q.id,
+              text: q.text,
+              answers: q.answers,
+              subjectName: finalTestData.testData.find(td => td.questions.some(tq => tq.id === q.id))?.subject.name || ""
+            }))}
+            currentIndex={currentQuestionIndex}
+            userAnswers={userAnswers}
+            onQuestionChange={setCurrentQuestionIndex}
+            onAnswerSelect={isReviewMode ? (() => {}) : handleAnswerSelect}
+            onSubmit={isReviewMode ? (() => setLocation("/results")) : handleSubmitTest}
+            isSubmitting={submitTestMutation.isPending}
+            timeLeft={isReviewMode ? 0 : timeLeft}
+            isReviewMode={isReviewMode}
+          />
 
-  // Mobile view removed: mobile will now use the same DesktopView markup
+        </div>
+    );
+  }
 
-  // Desktop view
-  const DesktopView = () => (
+  // Desktop view - возвращаем JSX напрямую без промежуточного компонента
+  return (
     <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 lg:px-6 py-8">
+      <main className="w-full mx-auto px-0 py-8">
         {/* Test Header */}
-          <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-6 px-4 lg:px-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 space-y-3 md:space-y-0">
             <div>
-              <h1 className="text-2xl font-bold text-foreground">
-                {testData.variant.block.name} - {testData.variant.name}
-              </h1>
-              <p className="text-muted-foreground">
-                Вопрос {currentQuestionIndex + 1} из {allQuestions.length} • 
-                Предмет: {currentQuestion?.subjectName}
-              </p>
+              <div className="flex items-center gap-3 mb-2">
+                <h1 className="text-xl md:text-2xl font-bold text-foreground line-clamp-2">
+                  {finalTestData.variant.block?.name || 'Тест'} - Нұсқа {(() => {
+                    const match = finalTestData.variant.name.match(/\d+/);
+                    return match ? `10${match[0].padStart(2, '0')}` : '1001';
+                  })()}
+                </h1>
+                {isReviewMode && (
+                  <Badge variant="outline" className="bg-blue-50 text-blue-500 border-blue-500">
+                    <i className="fas fa-eye mr-1"></i>
+                    Қарау режимі
+                  </Badge>
+                )}
+              </div>
               {isOfflineMode && (
                 <div className="flex items-center mt-2">
                   <NetworkStatus showDetails={true} className="text-sm" />
@@ -410,50 +617,59 @@ export default function TestPage() {
             </div>
             <div className="flex items-center space-x-4">
               <NetworkStatus className="md:hidden" />
-              {/* old header timer removed */}
+              {/* Таймер справа (только для ПК и режима тестирования) */}
+              {!isReviewMode && (
+                <div className="hidden lg:flex items-center gap-2 bg-card border rounded-lg px-4 py-2 shadow-sm">
+                  <i className="fas fa-clock text-blue-500"></i>
+                  <span className="text-lg font-mono font-bold text-foreground">
+                    {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                  </span>
+                </div>
+              )}
             </div>
-          </div>
-          
-          <div className="flex items-center space-x-4">
-            {testData.variant.block.hasCalculator && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowCalculator(!showCalculator)}
-                data-testid="button-calculator"
-              >
-                <i className="fas fa-calculator mr-2"></i>
-                Калькулятор
-              </Button>
-            )}
-            {testData.variant.block.hasPeriodicTable && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowPeriodicTable(!showPeriodicTable)}
-                data-testid="button-periodic-table"
-              >
-                <i className="fas fa-table mr-2"></i>
-                Таблица Менделеева
-              </Button>
-            )}
           </div>
         </div>
 
-  <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          {/* Left subject menu (1 of 6) */}
-          <div className="lg:col-span-1">
+  <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-6 px-4 lg:px-0">
+          {/* Left subject menu (1 of 4) */}
+          <div className="lg:col-span-1 lg:pl-0">
             <Card>
               <CardHeader>
-                <CardTitle>Предметы</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">Предметы</CardTitle>
+                  <div className="flex items-center space-x-2">
+                    {!isReviewMode && finalTestData?.variant?.block?.hasCalculator === true && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleOpenCalculator}
+                        data-testid="button-calculator-mini"
+                        className="h-6 w-6 p-0"
+                      >
+                        <i className="fas fa-calculator text-xs"></i>
+                      </Button>
+                    )}
+                    {!isReviewMode && finalTestData?.variant?.block?.hasPeriodicTable === true && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleOpenPeriodicTable}
+                        data-testid="button-periodic-table-mini"
+                        className="h-6 w-6 p-0"
+                      >
+                        <i className="fas fa-table text-xs"></i>
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="space-y-2">
-                {testData.testData.map((s, si) => {
+                {finalTestData.testData.map((s, si) => {
                   const unanswered = s.questions.filter(q => !userAnswers[q.id]).length;
                   return (
                     <button
                       key={s.subject.id}
-                      className={`w-full text-left p-2 rounded-lg flex items-center justify-between hover:bg-muted/50 ${testData.testData.findIndex(x=>x.subject.id===s.subject.id) === si ? 'bg-muted' : ''}`}
+                      className={`w-full text-left p-2 rounded-lg flex items-center justify-between hover:bg-muted/50 ${finalTestData.testData.findIndex(x=>x.subject.id===s.subject.id) === si ? 'bg-muted' : ''}`}
                       onClick={() => {
                         // jump to first question of this subject
                         const qIndex = allQuestions.findIndex(q => q.subjectName === s.subject.name);
@@ -468,61 +684,139 @@ export default function TestPage() {
               </CardContent>
             </Card>
 
-            {/* Timer small at bottom */}
-            <div className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Таймер</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {/* Custom timer display: black normally, red when < 30 minutes */}
-                  <div className="text-center">
-                    <TimerDisplay seconds={timeLeft} />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+
           </div>
 
-          {/* Question Content (center) */}
-          <div className="lg:col-span-3">
+          {/* Question Content (center - 3 of 4 columns = 75%) */}
+          <div className="lg:col-span-3 lg:pr-6">
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle>Вопрос {currentQuestionIndex + 1}</CardTitle>
+                  <CardTitle>{currentQuestionInfo.subjectName} - Вопрос {currentQuestionInfo.questionNumber}</CardTitle>
                   <Badge variant="secondary">{currentQuestion?.subjectName}</Badge>
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="text-lg text-foreground leading-relaxed">
-                  {currentQuestion?.text}
+                <div className={`flex gap-6 ${currentQuestion?.imageUrl ? 'items-start' : ''}`}>
+                  {/* Текст вопроса */}
+                  <div className="flex-1 text-lg text-foreground leading-relaxed">
+                    {currentQuestion?.text}
+                  </div>
+                  
+                  {/* Изображение вопроса справа */}
+                  {currentQuestion?.imageUrl && (
+                    <div 
+                      className="flex-shrink-0 cursor-pointer transition-transform hover:scale-105"
+                      onClick={() => {
+                        setSelectedImage(currentQuestion.imageUrl!);
+                        setImageModalOpen(true);
+                      }}
+                    >
+                      <img 
+                        src={currentQuestion.imageUrl} 
+                        alt="Изображение к вопросу" 
+                        className="w-[400px] h-[400px] object-contain rounded-lg border shadow-sm bg-muted/30"
+                      />
+                    </div>
+                  )}
                 </div>
                 
                 <div className="space-y-3">
-                  {currentQuestion?.answers.map((answer, index) => (
-                    <div key={answer.id} className="flex items-start space-x-3">
-                      <input
-                        type="radio"
-                        id={`answer-${answer.id}`}
-                        name={`question-${currentQuestion.id}`}
-                        value={answer.id}
-                        checked={userAnswers[currentQuestion.id] === answer.id}
-                        onChange={() => handleAnswerSelect(currentQuestion.id, answer.id)}
-                        className="mt-1"
-                        data-testid={`radio-answer-${answer.id}`}
-                      />
-                      <label
-                        htmlFor={`answer-${answer.id}`}
-                        className="flex-1 p-3 rounded-lg border border-border hover:bg-muted/50 cursor-pointer transition-colors"
+                  {currentQuestion?.answers.map((answer, index) => {
+                    // Определяем, выбран ли этот ответ
+                    const isSelected = userAnswers[currentQuestion.id] === answer.id;
+                    
+                    // Определяем стиль для режима просмотра результатов
+                    const getAnswerStyle = () => {
+                      // Режим тестирования (не просмотр результатов)
+                      if (!isReviewMode) {
+                        if (isSelected) {
+                          // Выбранный ответ - синяя подсветка
+                          return "w-full p-4 rounded-lg border-2 border-blue-500 bg-blue-50 text-blue-500 cursor-pointer transition-colors text-left";
+                        }
+                        // Обычный невыбранный ответ
+                        return "w-full p-4 rounded-lg border border-border hover:bg-muted/50 cursor-pointer transition-colors text-left";
+                      }
+                      
+                      const isUserAnswer = userAnswers[currentQuestion.id] === answer.id;
+                      const isCorrectAnswer = answer.isCorrect === true;
+                      
+                      // Подробное логирование первого вопроса
+                      
+                      if (isUserAnswer && isCorrectAnswer) {
+                        // Мой правильный ответ - синий
+                        return "w-full p-4 rounded-lg border-2 border-blue-500 bg-blue-50 text-blue-500 transition-colors text-left";
+                      } else if (isUserAnswer && !isCorrectAnswer) {
+                        // Мой неправильный ответ - красный  
+                        return "w-full p-4 rounded-lg border-2 border-red-500 bg-red-50 text-red-800 transition-colors text-left";
+                      } else if (!isUserAnswer && isCorrectAnswer) {
+                        // Правильный ответ (где я не отвечал) - зеленый
+                        return "w-full p-4 rounded-lg border-2 border-green-500 bg-green-50 text-green-800 transition-colors text-left";
+                      } else {
+                        // Неправильный ответ (где я не отвечал) - обычный серый
+                        return "w-full p-4 rounded-lg border border-border bg-muted/20 transition-colors opacity-60 text-left";
+                      }
+                    };
+
+                    return (
+                      <button
+                        key={answer.id}
+                        type="button"
+                        onClick={() => !isReviewMode && handleAnswerSelect(currentQuestion.id, answer.id)}
+                        className={getAnswerStyle()}
+                        disabled={isReviewMode}
+                        data-testid={`button-answer-${answer.id}`}
                       >
-                        <span className="font-medium text-primary mr-3">
+                        <span className="font-medium mr-3">
                           {String.fromCharCode(65 + index)}.
                         </span>
                         {answer.text}
-                      </label>
-                    </div>
-                  ))}
+                        {isReviewMode && (() => {
+                          const isUserAnswer = userAnswers[currentQuestion.id] === answer.id;
+                          const isCorrectAnswer = answer.isCorrect === true;
+                          
+                          if (isUserAnswer && isCorrectAnswer) {
+                            // Мой правильный ответ - синяя галочка
+                            return <span className="ml-2 text-blue-500 font-bold">✓</span>;
+                          } else if (isUserAnswer && !isCorrectAnswer) {
+                            // Мой неправильный ответ - красный крестик
+                            return <span className="ml-2 text-red-600 font-bold">✗</span>;
+                          } else if (!isUserAnswer && isCorrectAnswer) {
+                            // Правильный ответ где я не отвечал - зеленая галочка
+                            return <span className="ml-2 text-green-600 font-bold">✓</span>;
+                          }
+                          // Для неправильных ответов где я не отвечал - ничего не показываем
+                          return null;
+                        })()}
+                      </button>
+                    );
+                  })}
                 </div>
+                
+                {/* Изображение решения - показывается только в режиме просмотра результатов */}
+                {isReviewMode && currentQuestion?.solutionImageUrl && (
+                  <div className="mt-6 pt-6 border-t">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                        <i className="fas fa-lightbulb text-yellow-500"></i>
+                        <span>Решение:</span>
+                      </div>
+                      <div 
+                        className="cursor-pointer transition-transform hover:scale-[1.02]"
+                        onClick={() => {
+                          setSelectedImage(currentQuestion.solutionImageUrl!);
+                          setImageModalOpen(true);
+                        }}
+                      >
+                        <img 
+                          src={currentQuestion.solutionImageUrl} 
+                          alt="Решение задачи" 
+                          className="w-full max-w-2xl rounded-lg border shadow-md bg-muted/30"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 <div className="flex items-center justify-between pt-6">
                   <Button
@@ -540,7 +834,7 @@ export default function TestPage() {
                     {(() => {
                       const curSubjectName = currentQuestion?.subjectName;
                       if (!curSubjectName) return null;
-                      const subject = testData.testData.find(s => s.subject.name === curSubjectName);
+                      const subject = finalTestData.testData.find(s => s.subject.name === curSubjectName);
                       if (!subject) return null;
                       return (
                         <div className="flex items-center gap-2">
@@ -578,7 +872,7 @@ export default function TestPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {currentQuestionIndex === allQuestions.length - 1 ? (
+                    {!isReviewMode && currentQuestionIndex === allQuestions.length - 1 ? (
                       <Button
                         onClick={handleSubmitTest}
                         disabled={submitTestMutation.isPending}
@@ -596,15 +890,27 @@ export default function TestPage() {
                           Далее
                           <i className="fas fa-chevron-right ml-2"></i>
                         </Button>
-                        <Button
-                          variant="ghost"
-                          onClick={handleSubmitTest}
-                          data-testid="button-inline-finish"
-                          className="ml-2 text-sm"
-                        >
-                          Завершить тест
-                        </Button>
+                        {!isReviewMode && (
+                          <Button
+                            variant="ghost"
+                            onClick={handleSubmitTest}
+                            data-testid="button-inline-finish"
+                            className="ml-2 text-sm"
+                          >
+                            Завершить тест
+                          </Button>
+                        )}
                       </>
+                    )}
+                    {isReviewMode && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setLocation("/results")}
+                        data-testid="button-back-to-results"
+                      >
+                        <i className="fas fa-arrow-left mr-2"></i>
+                        Назад к результатам
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -617,30 +923,96 @@ export default function TestPage() {
 
         {/* external pagination removed (navigation shown inside question card) */}
 
-        {/* Fixed finish button bottom-right */}
-        <div>
-          <Button onClick={handleSubmitTest} data-testid="button-finish-bottom" className="fixed bottom-6 right-6 z-50 bg-accent hover:bg-accent/90">Завершить тест</Button>
-        </div>
+        {/* Fixed finish button bottom-right - только в режиме тестирования */}
+        {!isReviewMode && (
+          <div>
+            <Button onClick={handleSubmitTest} data-testid="button-finish-bottom" className="fixed bottom-6 right-6 z-50 bg-accent hover:bg-accent/90">Завершить тест</Button>
+          </div>
+        )}
 
         {/* Tools Modals */}
-        {showCalculator && (
-          <Calculator 
-            isOpen={showCalculator}
-            onClose={() => setShowCalculator(false)}
-          />
-        )}
-        
-        {showPeriodicTable && (
-          <PeriodicTable
-            isOpen={showPeriodicTable}
-            onClose={() => setShowPeriodicTable(false)}
-          />
+        <TestToolsModal
+          showCalculator={showCalculator}
+          showPeriodicTable={showPeriodicTable}
+          onCloseCalculator={handleCloseCalculator}
+          onClosePeriodicTable={handleClosePeriodicTable}
+        />
+
+        {/* Image Modal */}
+        {imageModalOpen && selectedImage && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            {/* Overlay */}
+            <div 
+              className="fixed inset-0 bg-black/80 animate-in fade-in-0" 
+              onClick={() => {
+                setImageModalOpen(false);
+                setSelectedImage(null);
+              }}
+            />
+            
+            {/* Modal Content */}
+            <div className="relative z-50 w-full max-w-[90vw] max-h-[90vh] bg-background border rounded-lg shadow-lg p-0 overflow-hidden animate-in zoom-in-95">
+              {/* Close button */}
+              <button
+                onClick={() => {
+                  setImageModalOpen(false);
+                  setSelectedImage(null);
+                }}
+                className="absolute right-4 top-4 z-10 rounded-sm opacity-70 bg-background ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 p-2"
+              >
+                <i className="fas fa-times h-4 w-4"></i>
+                <span className="sr-only">Close</span>
+              </button>
+              
+              <span id="image-modal-description" className="sr-only">Изображение в полном размере</span>
+              <div className="relative w-full h-full flex items-center justify-center bg-background p-6">
+                <img 
+                  src={selectedImage} 
+                  alt="Изображение в полном размере" 
+                  className="max-w-full max-h-[85vh] object-contain"
+                />
+              </div>
+            </div>
+          </div>
         )}
 
+        {/* Submit Test Confirmation Dialog */}
+        <AlertDialog open={showSubmitDialog} onOpenChange={setShowSubmitDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Завершить тест?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {Object.keys(userAnswers).length < allQuestions.length ? (
+                  <>
+                    Вы ответили только на <strong>{Object.keys(userAnswers).length}</strong> из <strong>{allQuestions.length}</strong> вопросов.
+                    <br /><br />
+                    Неотвеченные вопросы будут засчитаны как неправильные.
+                    <br /><br />
+                    Вы уверены, что хотите завершить тест?
+                  </>
+                ) : (
+                  <>
+                    Вы ответили на все вопросы.
+                    <br /><br />
+                    Завершить тест и посмотреть результаты?
+                  </>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Отмена</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmSubmitTest} className="bg-blue-500 hover:bg-blue-700">
+                Завершить тест
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         {/* Video proctoring removed */}
+
+
       </main>
     </div>
   );
-
-  return <DesktopView />;
 }
+

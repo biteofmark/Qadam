@@ -19,7 +19,11 @@ const MemoryStore = createMemoryStore(session);
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserById(id: string): Promise<User | undefined>;
+  getAllUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
+  deleteUser(id: string): Promise<void>;
+  resetUserPassword(id: string): Promise<string>;
   
   // Blocks
   getAllBlocks(): Promise<Block[]>;
@@ -42,6 +46,7 @@ export interface IStorage {
   createSubject(subject: InsertSubject): Promise<Subject>;
   updateSubject(id: string, subject: Partial<InsertSubject>): Promise<Subject | undefined>;
   deleteSubject(id: string): Promise<void>;
+  copySubjects(sourceVariantId: string, targetVariantId: string, subjectIds: string[]): Promise<Subject[]>;
   
   // Questions
   getQuestionsBySubject(subjectId: string): Promise<Question[]>;
@@ -59,6 +64,7 @@ export interface IStorage {
   
   // Test Results
   createTestResult(result: InsertTestResult): Promise<TestResult>;
+  getTestResult(id: string): Promise<TestResult | undefined>;
   getTestResultsByUser(userId: string): Promise<TestResult[]>;
   getUserRanking(userId: string): Promise<UserRanking | undefined>;
   updateUserRanking(userId: string): Promise<void>;
@@ -165,6 +171,40 @@ export class DatabaseStorage implements IStorage {
       .values(insertUser)
       .returning();
     return user;
+  }
+
+  async getUserById(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    console.log('[Storage] Getting all users from database...');
+    const allUsers = await db.select().from(users).orderBy(asc(users.createdAt));
+    console.log('[Storage] Found users:', allUsers.length);
+    console.log('[Storage] Users data:', allUsers.map(u => ({ id: u.id, username: u.username, email: u.email })));
+    return allUsers;
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    await db.delete(users).where(eq(users.id, id));
+  }
+
+  async resetUserPassword(id: string): Promise<string> {
+    // Generate new random password
+    const newPassword = Math.random().toString(36).slice(-8);
+    
+    // Import hash function from crypto
+    const crypto = await import("crypto");
+    const salt = crypto.randomBytes(16).toString("hex");
+    const hashedPassword = crypto.scryptSync(newPassword, salt, 64).toString("hex") + ":" + salt;
+    
+    // Update user password
+    await db.update(users)
+      .set({ password: hashedPassword })
+      .where(eq(users.id, id));
+    
+    return newPassword;
   }
 
   private async initializeSampleData() {
@@ -424,6 +464,51 @@ export class DatabaseStorage implements IStorage {
     await db.delete(subjects).where(eq(subjects.id, id));
   }
 
+  async copySubjects(sourceVariantId: string, targetVariantId: string, subjectIds: string[]): Promise<Subject[]> {
+    const copiedSubjects: Subject[] = [];
+    
+    for (const subjectId of subjectIds) {
+      // Get original subject
+      const originalSubject = await this.getSubject(subjectId);
+      if (!originalSubject) {
+        console.warn(`Subject ${subjectId} not found, skipping`);
+        continue;
+      }
+      
+      // Create new subject in target variant
+      const newSubject = await this.createSubject({
+        variantId: targetVariantId,
+        name: originalSubject.name
+      });
+      
+      // Get all questions from original subject
+      const originalQuestions = await this.getQuestionsBySubject(subjectId);
+      
+      // Copy each question with its answers
+      for (const originalQuestion of originalQuestions) {
+        const newQuestion = await this.createQuestion({
+          subjectId: newSubject.id,
+          text: originalQuestion.text
+        });
+        
+        // Get and copy all answers for this question
+        const originalAnswers = await this.getAnswersByQuestion(originalQuestion.id);
+        
+        for (const originalAnswer of originalAnswers) {
+          await this.createAnswer({
+            questionId: newQuestion.id,
+            text: originalAnswer.text,
+            isCorrect: originalAnswer.isCorrect
+          });
+        }
+      }
+      
+      copiedSubjects.push(newSubject);
+    }
+    
+    return copiedSubjects;
+  }
+
   async getQuestionsBySubject(subjectId: string): Promise<Question[]> {
     return await db.select().from(questions).where(eq(questions.subjectId, subjectId));
   }
@@ -495,6 +580,14 @@ export class DatabaseStorage implements IStorage {
         completedAt: new Date()
       })
       .returning();
+    return result;
+  }
+
+  async getTestResult(id: string): Promise<TestResult | undefined> {
+    const [result] = await db
+      .select()
+      .from(testResults)
+      .where(eq(testResults.id, id));
     return result;
   }
 

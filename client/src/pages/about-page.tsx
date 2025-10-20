@@ -7,7 +7,7 @@ export default function AboutPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       {/* Header */}
-      <header className="bg-blue-800 backdrop-blur-md border-b border-blue-300 sticky top-0 z-50 shadow-lg">
+      <header className="bg-blue-500 backdrop-blur-md border-b border-blue-700 sticky top-0 z-50 shadow-lg">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-3">
@@ -16,7 +16,7 @@ export default function AboutPage() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-white">ProjectEnt</h1>
-                <p className="text-sm text-blue-100">Система тестирования ЕНТ</p>
+                <p className="text-sm text-blue-50">Система тестирования ЕНТ</p>
               </div>
             </div>
             
@@ -48,7 +48,7 @@ export default function AboutPage() {
                 </Button>
               </Link>
               <Link href="/auth">
-                <Button className="bg-white/90 text-blue-800 hover:bg-white border border-white font-medium">
+                <Button className="bg-white/90 text-blue-500 hover:bg-white border border-white font-medium">
                   Вход
                 </Button>
               </Link>
@@ -74,8 +74,8 @@ export default function AboutPage() {
         <div className="mb-16">
           <Card className="max-w-4xl mx-auto bg-white dark:bg-gray-800 shadow-lg">
             <CardHeader className="text-center pb-6">
-              <div className="mx-auto mb-4 p-3 bg-blue-100 dark:bg-blue-900 rounded-full w-fit">
-                <Target className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+              <div className="mx-auto mb-4 p-3 bg-blue-50 dark:bg-blue-700 rounded-full w-fit">
+                <Target className="h-8 w-8 text-blue-500 dark:text-blue-400" />
               </div>
               <CardTitle className="text-2xl text-gray-900 dark:text-white">Наша миссия</CardTitle>
             </CardHeader>
@@ -135,8 +135,8 @@ export default function AboutPage() {
 
           <Card className="bg-white dark:bg-gray-800 shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="text-center pb-4">
-              <div className="mx-auto mb-3 p-2 bg-blue-100 dark:bg-blue-900 rounded-lg w-fit">
-                <Clock className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              <div className="mx-auto mb-3 p-2 bg-blue-50 dark:bg-blue-700 rounded-lg w-fit">
+                <Clock className="h-6 w-6 text-blue-500 dark:text-blue-400" />
               </div>
               <CardTitle className="text-lg text-gray-900 dark:text-white">24/7 доступность</CardTitle>
             </CardHeader>
@@ -178,7 +178,7 @@ export default function AboutPage() {
 
         {/* Technology Section */}
         <div className="mb-16">
-          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-blue-200 dark:border-blue-800">
+          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-blue-500 dark:border-blue-500">
             <CardHeader className="text-center">
               <CardTitle className="text-2xl text-gray-900 dark:text-white mb-4">
                 Современные технологии
@@ -218,7 +218,7 @@ export default function AboutPage() {
         {/* Statistics Section */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
           <div className="text-center">
-            <div className="text-4xl font-bold text-blue-600 dark:text-blue-400 mb-2">50+</div>
+            <div className="text-4xl font-bold text-blue-500 dark:text-blue-400 mb-2">50+</div>
             <div className="text-gray-600 dark:text-gray-400">API endpoints</div>
           </div>
           <div className="text-center">
@@ -246,12 +246,12 @@ export default function AboutPage() {
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Link href="/auth">
-                  <Button size="lg" className="bg-blue-800 hover:bg-blue-700 text-white font-medium px-8">
+                  <Button size="lg" className="bg-blue-500 hover:bg-blue-700 text-white font-medium px-8">
                     Начать тестирование
                   </Button>
                 </Link>
                 <Link href="/public-tests">
-                  <Button size="lg" variant="outline" className="border-blue-800 text-blue-800 hover:bg-blue-50 font-medium px-8">
+                  <Button size="lg" variant="outline" className="border-blue-500 text-blue-500 hover:bg-blue-50 font-medium px-8">
                     Просмотреть тесты
                   </Button>
                 </Link>

@@ -95,11 +95,11 @@ export default function NotificationsPage() {
   const getNotificationIcon = (type: NotificationType) => {
     switch (type) {
       case "TEST_COMPLETED":
-        return "fas fa-check-circle text-blue-800";
+        return "fas fa-check-circle text-blue-500";
       case "TEST_REMINDER":
-        return "fas fa-clock text-blue-800";
+        return "fas fa-clock text-blue-500";
       case "ACHIEVEMENT":
-        return "fas fa-trophy text-blue-800";
+        return "fas fa-trophy text-blue-500";
       case "SYSTEM_MESSAGE":
         return "fas fa-info-circle text-gray-500";
       default:
@@ -288,9 +288,9 @@ export default function NotificationsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Прочитанные</p>
-                <p className="text-2xl font-bold text-blue-800">{totalNotifications - unreadCount}</p>
+                <p className="text-2xl font-bold text-blue-500">{totalNotifications - unreadCount}</p>
               </div>
-              <i className="fas fa-check-circle text-2xl text-blue-800"></i>
+              <i className="fas fa-check-circle text-2xl text-blue-500"></i>
             </div>
           </CardContent>
         </Card>

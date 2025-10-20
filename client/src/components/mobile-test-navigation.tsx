@@ -21,6 +21,7 @@ interface MobileTestNavigationProps {
   onSubmit: () => void;
   isSubmitting: boolean;
   timeLeft: number;
+  isReviewMode?: boolean;
 }
 
 export default function MobileTestNavigation({
@@ -31,7 +32,8 @@ export default function MobileTestNavigation({
   onAnswerSelect,
   onSubmit,
   isSubmitting,
-  timeLeft
+  timeLeft,
+  isReviewMode = false
 }: MobileTestNavigationProps) {
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
   const [touchEnd, setTouchEnd] = useState<{ x: number; y: number } | null>(null);
@@ -205,46 +207,106 @@ export default function MobileTestNavigation({
             </div>
             
             <div className="space-y-3">
-              {currentQuestion?.answers.map((answer, index) => (
-                <div
-                  key={answer.id}
-                  className={`
-                    flex items-start space-x-3 p-4 rounded-lg border cursor-pointer transition-all
-                    ${userAnswers[currentQuestion.id] === answer.id 
-                      ? 'border-primary bg-primary/5' 
-                      : 'border-border hover:bg-muted/50'
-                    }
-                  `}
-                  onClick={() => {
-                    onAnswerSelect(currentQuestion.id, answer.id);
-                    if ('vibrate' in navigator) {
-                      navigator.vibrate(25);
-                    }
-                  }}
-                  style={{ minHeight: '44px' }}
-                  data-testid={`mobile-answer-${answer.id}`}
-                >
-                  <div className={`
-                    w-6 h-6 rounded-full border-2 flex items-center justify-center mt-1 flex-shrink-0
-                    ${userAnswers[currentQuestion.id] === answer.id 
-                      ? 'border-primary bg-primary' 
-                      : 'border-muted-foreground'
-                    }
-                  `}>
-                    {userAnswers[currentQuestion.id] === answer.id && (
-                      <div className="w-2 h-2 rounded-full bg-primary-foreground"></div>
-                    )}
+              {currentQuestion?.answers.map((answer, index) => {
+                // Определяем стиль для режима просмотра результатов
+                const getAnswerStyle = () => {
+                  if (!isReviewMode) {
+                    return `
+                      flex items-start space-x-3 p-4 rounded-lg border cursor-pointer transition-all
+                      ${userAnswers[currentQuestion.id] === answer.id 
+                        ? 'border-primary bg-primary/5' 
+                        : 'border-border hover:bg-muted/50'
+                      }
+                    `;
+                  }
+                  
+                  const isUserAnswer = userAnswers[currentQuestion.id] === answer.id;
+                  const isCorrectAnswer = (answer as any).isCorrect;
+                  
+                  if (isCorrectAnswer && isUserAnswer) {
+                    // Мой правильный ответ - синий
+                    return "flex items-start space-x-3 p-4 rounded-lg border-2 border-blue-500 bg-blue-50 text-blue-500 transition-all";
+                  } else if (isCorrectAnswer && !isUserAnswer) {
+                    // Правильный ответ (не мой) - зеленый
+                    return "flex items-start space-x-3 p-4 rounded-lg border-2 border-green-500 bg-green-50 text-green-800 transition-all";
+                  } else if (isUserAnswer && !isCorrectAnswer) {
+                    // Мой неправильный ответ - красный
+                    return "flex items-start space-x-3 p-4 rounded-lg border-2 border-red-500 bg-red-50 text-red-800 transition-all";
+                  } else {
+                    // Обычный неправильный ответ
+                    return "flex items-start space-x-3 p-4 rounded-lg border border-border bg-muted/20 transition-all opacity-60";
+                  }
+                };
+
+                const getRadioStyle = () => {
+                  if (!isReviewMode) {
+                    return `
+                      w-6 h-6 rounded-full border-2 flex items-center justify-center mt-1 flex-shrink-0
+                      ${userAnswers[currentQuestion.id] === answer.id 
+                        ? 'border-primary bg-primary' 
+                        : 'border-muted-foreground'
+                      }
+                    `;
+                  }
+                  
+                  const isUserAnswer = userAnswers[currentQuestion.id] === answer.id;
+                  const isCorrectAnswer = (answer as any).isCorrect;
+                  
+                  if (isCorrectAnswer && isUserAnswer) {
+                    // Мой правильный ответ - синий
+                    return "w-6 h-6 rounded-full border-2 border-blue-500 bg-blue-500 flex items-center justify-center mt-1 flex-shrink-0";
+                  } else if (isCorrectAnswer && !isUserAnswer) {
+                    // Правильный ответ (не мой) - зеленый
+                    return "w-6 h-6 rounded-full border-2 border-green-600 bg-green-600 flex items-center justify-center mt-1 flex-shrink-0";
+                  } else if (isUserAnswer && !isCorrectAnswer) {
+                    // Мой неправильный ответ - красный
+                    return "w-6 h-6 rounded-full border-2 border-red-600 bg-red-600 flex items-center justify-center mt-1 flex-shrink-0";
+                  } else {
+                    // Обычный неправильный ответ
+                    return "w-6 h-6 rounded-full border-2 border-muted-foreground flex items-center justify-center mt-1 flex-shrink-0";
+                  }
+                };
+
+                return (
+                  <div
+                    key={answer.id}
+                    className={getAnswerStyle()}
+                    onClick={() => {
+                      if (!isReviewMode) {
+                        onAnswerSelect(currentQuestion.id, answer.id);
+                        if ('vibrate' in navigator) {
+                          navigator.vibrate(25);
+                        }
+                      }
+                    }}
+                    style={{ minHeight: '44px' }}
+                    data-testid={`mobile-answer-${answer.id}`}
+                  >
+                    <div className={getRadioStyle()}>
+                      {((isReviewMode && (answer as any).isCorrect) || (!isReviewMode && userAnswers[currentQuestion.id] === answer.id)) && (
+                        <div className="w-2 h-2 rounded-full bg-white"></div>
+                      )}
+                    </div>
+                    <div className="flex-1 flex items-center justify-between">
+                      <span className="font-medium mr-3">
+                        {String.fromCharCode(65 + index)}.
+                      </span>
+                      <span className="text-foreground">
+                        {answer.text}
+                        {isReviewMode && (answer as any).isCorrect && userAnswers[currentQuestion.id] === answer.id && (
+                          <span className="ml-2 text-blue-500">✓</span>
+                        )}
+                        {isReviewMode && (answer as any).isCorrect && userAnswers[currentQuestion.id] !== answer.id && (
+                          <span className="ml-2 text-green-600">✓</span>
+                        )}
+                        {isReviewMode && userAnswers[currentQuestion.id] === answer.id && !(answer as any).isCorrect && (
+                          <span className="ml-2 text-red-600">✗</span>
+                        )}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <span className="font-medium text-primary mr-3">
-                      {String.fromCharCode(65 + index)}.
-                    </span>
-                    <span className="text-foreground">
-                      {answer.text}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>

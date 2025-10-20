@@ -5,6 +5,9 @@ export default {
   content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}"],
   theme: {
     extend: {
+      screens: {
+        'xs': '475px',
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
@@ -60,6 +63,18 @@ export default {
           "accent-foreground": "var(--sidebar-accent-foreground)",
           border: "var(--sidebar-border)",
           ring: "var(--sidebar-ring)",
+        },
+        blue: {
+          50: '#e6eef5',
+          100: '#ccdde9',
+          200: '#99bbd3',
+          300: '#6699bd',
+          400: '#3377a7',
+          500: '#123c62', // Main custom blue
+          600: '#0f3050',
+          700: '#0c243c',
+          800: '#091828',
+          900: '#060c14',
         },
       },
       fontFamily: {

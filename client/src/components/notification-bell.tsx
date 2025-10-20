@@ -79,11 +79,11 @@ export default function NotificationBell() {
   const getNotificationIcon = (type: NotificationType) => {
     switch (type) {
       case "TEST_COMPLETED":
-        return "fas fa-check-circle text-blue-800";
+        return "fas fa-check-circle text-blue-500";
       case "TEST_REMINDER":
-        return "fas fa-clock text-blue-800";
+        return "fas fa-clock text-blue-500";
       case "ACHIEVEMENT":
-        return "fas fa-trophy text-blue-800";
+        return "fas fa-trophy text-blue-500";
       case "SYSTEM_MESSAGE":
         return "fas fa-info-circle text-gray-500";
       default:

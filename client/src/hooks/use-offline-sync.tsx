@@ -52,12 +52,26 @@ export function useOfflineSync(): UseOfflineSyncReturn {
         offlineDB.getPendingResults()
       ]);
 
-      setSyncStatus(prev => ({
-        ...prev,
-        isOnline: navigator.onLine,
-        pendingTests: activeTests.length,
-        pendingResults: pendingResults.length
-      }));
+      // Only update if values actually changed
+      setSyncStatus(prev => {
+        const newPending = activeTests.length;
+        const newResults = pendingResults.length;
+        const newOnline = navigator.onLine;
+        
+        if (prev.pendingTests === newPending && 
+            prev.pendingResults === newResults && 
+            prev.isOnline === newOnline &&
+            prev.isSyncing === false) {
+          return prev; // No change, return same reference to avoid re-render
+        }
+        
+        return {
+          ...prev,
+          isOnline: newOnline,
+          pendingTests: newPending,
+          pendingResults: newResults
+        };
+      });
     } catch (error) {
       console.error('[Sync] Failed to update sync status:', error);
     }
@@ -66,12 +80,25 @@ export function useOfflineSync(): UseOfflineSyncReturn {
   // Listen for online/offline events
   useEffect(() => {
     const handleOnline = () => {
-      setSyncStatus(prev => ({ ...prev, isOnline: true, errors: [] }));
-      syncNow(); // Auto-sync when coming online
+      setSyncStatus(prev => {
+        // Только обновляем если статус изменился
+        if (prev.isOnline && prev.errors.length === 0) {
+          return prev; // Уже онлайн, не создаём новый объект
+        }
+        return { ...prev, isOnline: true, errors: [] };
+      });
+      // Don't auto-sync here to avoid infinite loop
+      // User can manually sync or we sync on test completion
     };
 
     const handleOffline = () => {
-      setSyncStatus(prev => ({ ...prev, isOnline: false, isSyncing: false }));
+      setSyncStatus(prev => {
+        // Только обновляем если статус изменился
+        if (!prev.isOnline && !prev.isSyncing) {
+          return prev; // Уже офлайн, не создаём новый объект
+        }
+        return { ...prev, isOnline: false, isSyncing: false };
+      });
     };
 
     window.addEventListener('online', handleOnline);
@@ -157,7 +184,13 @@ export function useOfflineSync(): UseOfflineSyncReturn {
       return;
     }
 
-    setSyncStatus(prev => ({ ...prev, isSyncing: true, errors: [] }));
+    setSyncStatus(prev => {
+      // Только обновляем если не синхронизируем
+      if (prev.isSyncing && prev.errors.length === 0) {
+        return prev;
+      }
+      return { ...prev, isSyncing: true, errors: [] };
+    });
 
     try {
       console.log('[Sync] Starting manual sync...');
@@ -167,12 +200,15 @@ export function useOfflineSync(): UseOfflineSyncReturn {
         syncTestResults()
       ]);
 
-      setSyncStatus(prev => ({
-        ...prev,
-        isSyncing: false,
-        lastSync: new Date(),
-        errors: []
-      }));
+      setSyncStatus(prev => {
+        // Всегда обновляем тут т.к. isSyncing меняется с true на false
+        return {
+          ...prev,
+          isSyncing: false,
+          lastSync: new Date(),
+          errors: []
+        };
+      });
 
       await updateSyncStatus();
 

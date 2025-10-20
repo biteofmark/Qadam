@@ -1349,9 +1349,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const createdSubjects = [];
       for (const subj of subjectsList) {
         const [subject] = await db.insert(subjects).values({
-          blockId: block.id,
-          name: subj.name,
-          order: subj.order
+          variantId: variant.id,
+          name: subj.name
         }).returning();
         createdSubjects.push(subject);
       }
@@ -1361,11 +1360,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const subject of createdSubjects) {
         for (let i = 1; i <= 5; i++) {
           const [question] = await db.insert(questions).values({
-            variantId: variant.id,
             subjectId: subject.id,
-            questionNumber: i,
-            questionText: `${subject.name} - Вопрос ${i}`,
-            questionType: 'single'
+            text: `${subject.name} - Вопрос ${i}`
           }).returning();
 
           // Создаем ответы
@@ -1373,7 +1369,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           for (let j = 0; j < 5; j++) {
             await db.insert(answers).values({
               questionId: question.id,
-              answerText: `Ответ ${answerOptions[j]}`,
+              text: `Ответ ${answerOptions[j]}`,
               isCorrect: j === 0
             });
           }

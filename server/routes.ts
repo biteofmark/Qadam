@@ -1283,6 +1283,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Ошибка создания админа" });
     }
   });
+
+  // Make current user admin (temporary, remove after first use)
+  app.post("/api/make-me-admin", isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      
+      const userId = req.user.id;
+      const result = await storage.db.execute(
+        sql`UPDATE users SET role = 'admin' WHERE id = ${userId} RETURNING id, username, role`
+      );
+      
+      if (result.rows.length > 0) {
+        // Update session
+        req.user.role = 'admin';
+        res.json({ message: "You are now admin!", user: result.rows[0] });
+      } else {
+        res.status(404).json({ message: "User not found" });
+      }
+    } catch (error) {
+      console.error('[API] Error making user admin:', error);
+      res.status(500).json({ message: "Error updating user" });
+    }
+  });
   
   // Admin user management endpoints
   app.get("/api/admin/users", requireAdmin, async (req, res) => {

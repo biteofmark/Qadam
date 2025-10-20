@@ -1285,7 +1285,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Make current user admin (temporary, remove after first use)
-  app.post("/api/make-me-admin", isAuthenticated, async (req, res) => {
+  app.post("/api/make-me-admin", requireAuth, async (req, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Not authenticated" });

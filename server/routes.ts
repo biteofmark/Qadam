@@ -1292,20 +1292,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const userId = req.user.id;
+      const username = req.user.username;
+      
+      // Update username to "admin" to grant admin privileges
       const result = await storage.db.execute(
-        sql`UPDATE users SET role = 'admin' WHERE id = ${userId} RETURNING id, username, role`
+        sql`UPDATE users SET username = 'admin' WHERE id = ${userId} RETURNING id, username, email`
       );
       
       if (result.rows.length > 0) {
-        // Update session
-        req.user.role = 'admin';
-        res.json({ message: "You are now admin!", user: result.rows[0] });
+        res.json({ message: "You are now admin! Please re-login.", user: result.rows[0] });
       } else {
         res.status(404).json({ message: "User not found" });
       }
     } catch (error) {
       console.error('[API] Error making user admin:', error);
-      res.status(500).json({ message: "Error updating user" });
+      res.status(500).json({ message: "Error updating user: " + (error as Error).message });
     }
   });
   

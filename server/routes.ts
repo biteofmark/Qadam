@@ -1315,6 +1315,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Clear all test data (admin only)
+  app.post("/api/admin/clear-data", requireAdmin, async (req, res) => {
+    try {
+      console.log('[API] Clearing all test data...');
+      
+      const { db } = await import('./db');
+      const { blocks, variants, subjects, questions, answers, testResults } = await import('@shared/schema');
+      
+      // Delete in correct order (cascade will handle most, but being explicit)
+      await db.delete(testResults);
+      await db.delete(answers);
+      await db.delete(questions);
+      await db.delete(subjects);
+      await db.delete(variants);
+      await db.delete(blocks);
+      
+      console.log('[API] All test data cleared');
+      res.json({ message: 'All test data cleared successfully!' });
+    } catch (error) {
+      console.error('[API] Error clearing data:', error);
+      res.status(500).json({ message: 'Error clearing data: ' + (error as Error).message });
+    }
+  });
+  
   // Seed database with test data (admin only)
   app.post("/api/admin/seed-data", requireAdmin, async (req, res) => {
     try {
@@ -1335,15 +1359,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         blockId: block.id,
         name: 'Вариант 1',
         isFree: true,
-        duration: 180,
-        questionsPerSubject: 5
+        duration: 215, // 3 часа 35 минут
+        questionsPerSubject: 20
       }).returning();
 
-      // 3. Создаем предметы
+      // 3. Создаем предметы (стандартный ЕНТ)
       const subjectsList = [
-        { name: 'Математика', order: 1 },
-        { name: 'Физика', order: 2 },
-        { name: 'Химия', order: 3 }
+        { name: 'Математическая грамотность' },
+        { name: 'Грамотность чтения' },
+        { name: 'История Казахстана' },
+        { name: 'Математика' },
+        { name: 'Физика' }
       ];
 
       const createdSubjects = [];
@@ -1355,10 +1381,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdSubjects.push(subject);
       }
 
-      // 4. Создаем вопросы для каждого предмета
+      // 4. Создаем вопросы для каждого предмета (по 20 вопросов)
       let totalQuestions = 0;
       for (const subject of createdSubjects) {
-        for (let i = 1; i <= 5; i++) {
+        for (let i = 1; i <= 20; i++) {
           const [question] = await db.insert(questions).values({
             subjectId: subject.id,
             text: `${subject.name} - Вопрос ${i}`

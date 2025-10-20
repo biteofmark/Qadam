@@ -1315,6 +1315,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Seed database with test data (admin only)
+  app.post("/api/admin/seed-data", requireAdmin, async (req, res) => {
+    try {
+      console.log('[API] Starting database seed...');
+      
+      const { db } = await import('./db');
+      const { blocks, variants, subjects, questions, answers } = await import('@shared/schema');
+      
+      // 1. Создаем блок "ЕНТ 2025"
+      const [block] = await db.insert(blocks).values({
+        name: 'ЕНТ 2025',
+        hasCalculator: true,
+        hasPeriodicTable: true
+      }).returning();
+
+      // 2. Создаем вариант "Вариант 1" (бесплатный)
+      const [variant] = await db.insert(variants).values({
+        blockId: block.id,
+        name: 'Вариант 1',
+        isFree: true,
+        duration: 180,
+        questionsPerSubject: 5
+      }).returning();
+
+      // 3. Создаем предметы
+      const subjectsList = [
+        { name: 'Математика', order: 1 },
+        { name: 'Физика', order: 2 },
+        { name: 'Химия', order: 3 }
+      ];
+
+      const createdSubjects = [];
+      for (const subj of subjectsList) {
+        const [subject] = await db.insert(subjects).values({
+          blockId: block.id,
+          name: subj.name,
+          order: subj.order
+        }).returning();
+        createdSubjects.push(subject);
+      }
+
+      // 4. Создаем вопросы для каждого предмета
+      let totalQuestions = 0;
+      for (const subject of createdSubjects) {
+        for (let i = 1; i <= 5; i++) {
+          const [question] = await db.insert(questions).values({
+            variantId: variant.id,
+            subjectId: subject.id,
+            questionNumber: i,
+            questionText: `${subject.name} - Вопрос ${i}`,
+            questionType: 'single'
+          }).returning();
+
+          // Создаем ответы
+          const answerOptions = ['A', 'B', 'C', 'D', 'E'];
+          for (let j = 0; j < 5; j++) {
+            await db.insert(answers).values({
+              questionId: question.id,
+              answerText: `Ответ ${answerOptions[j]}`,
+              isCorrect: j === 0
+            });
+          }
+          totalQuestions++;
+        }
+      }
+
+      console.log('[API] Seed completed successfully');
+      res.json({
+        message: 'Database seeded successfully!',
+        data: {
+          blocks: 1,
+          variants: 1,
+          subjects: createdSubjects.length,
+          questions: totalQuestions,
+          answers: totalQuestions * 5
+        }
+      });
+    } catch (error) {
+      console.error('[API] Error seeding database:', error);
+      res.status(500).json({ message: 'Error seeding database: ' + (error as Error).message });
+    }
+  });
+  
   // Admin user management endpoints
   app.get("/api/admin/users", requireAdmin, async (req, res) => {
     try {

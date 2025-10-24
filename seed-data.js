@@ -1,7 +1,9 @@
 import pkg from 'pg';
 const { Pool } = pkg;
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { blocks, variants, subjects, questions, answers } from './shared/schema.js';
+import * as schema from '@shared/schema';
+
+const { blocks, variants, subjects, questions, answers } = schema;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL
@@ -13,74 +15,83 @@ async function seed() {
   try {
     console.log('🌱 Starting seed...');
 
-    // 1. Создаем блок "ЕНТ 2025"
+    // 1. Создаем блок "2025"
     const [block] = await db.insert(blocks).values({
-      name: 'ЕНТ 2025',
+      name: '2025',
       hasCalculator: true,
       hasPeriodicTable: true
     }).returning();
     console.log('✅ Block created:', block.name);
 
-    // 2. Создаем вариант "Вариант 1" (бесплатный)
-    const [variant] = await db.insert(variants).values({
-      blockId: block.id,
-      name: 'Вариант 1',
-      isFree: true,
-      duration: 180, // 3 часа
-      questionsPerSubject: 5
-    }).returning();
-    console.log('✅ Variant created:', variant.name);
-
-    // 3. Создаем предметы
-    const subjectsList = [
-      { name: 'Математика', order: 1 },
-      { name: 'Физика', order: 2 },
-      { name: 'Химия', order: 3 }
-    ];
-
-    const createdSubjects = [];
-    for (const subj of subjectsList) {
-      const [subject] = await db.insert(subjects).values({
+    // 2. Создаем 10 вариантов (все бесплатные)
+    const createdVariants = [];
+    for (let v = 1; v <= 10; v++) {
+      const [variant] = await db.insert(variants).values({
         blockId: block.id,
-        name: subj.name,
-        order: subj.order
+        name: `Вариант ${v}`,
+        isFree: true,
+        duration: 215,
+        questionsPerSubject: 20
       }).returning();
-      createdSubjects.push(subject);
-      console.log('✅ Subject created:', subject.name);
+      createdVariants.push(variant);
+      console.log(`✅ Variant created: Вариант ${v}`);
     }
 
-    // 4. Создаем вопросы для каждого предмета
-    for (const subject of createdSubjects) {
-      for (let i = 1; i <= 5; i++) {
-        const [question] = await db.insert(questions).values({
-          variantId: variant.id,
-          subjectId: subject.id,
-          questionNumber: i,
-          questionText: `${subject.name} - Вопрос ${i}`,
-          questionType: 'single'
-        }).returning();
+    // 3. Создаем предметы для КАЖДОГО варианта (стандартный ЕНТ)
+    const subjectsList = [
+      { name: 'Математическая грамотность' },
+      { name: 'Грамотность чтения' },
+      { name: 'История Казахстана' },
+      { name: 'Математика' },
+      { name: 'Физика' }
+    ];
 
-        // Создаем ответы
-        const answerOptions = ['A', 'B', 'C', 'D', 'E'];
-        for (let j = 0; j < 5; j++) {
-          await db.insert(answers).values({
-            questionId: question.id,
-            answerText: `Ответ ${answerOptions[j]}`,
-            isCorrect: j === 0 // Первый ответ правильный
-          });
+    let totalQuestions = 0;
+    let totalSubjects = 0;
+
+    for (const variant of createdVariants) {
+      console.log(`\n📝 Creating subjects and questions for ${variant.name}...`);
+      
+      const createdSubjects = [];
+      for (const subj of subjectsList) {
+        const [subject] = await db.insert(subjects).values({
+          variantId: variant.id,
+          name: subj.name
+        }).returning();
+        createdSubjects.push(subject);
+        totalSubjects++;
+      }
+
+      // 4. Создаем вопросы для каждого предмета (по 20 вопросов)
+      for (const subject of createdSubjects) {
+        for (let i = 1; i <= 20; i++) {
+          const [question] = await db.insert(questions).values({
+            subjectId: subject.id,
+            text: `${subject.name} - Вопрос ${i}`
+          }).returning();
+
+          // Создаем ответы
+          const answerOptions = ['A', 'B', 'C', 'D', 'E'];
+          for (let j = 0; j < 5; j++) {
+            await db.insert(answers).values({
+              questionId: question.id,
+              text: `Ответ ${answerOptions[j]}`,
+              isCorrect: j === 0
+            });
+          }
+          totalQuestions++;
         }
-        
-        console.log(`✅ Question created: ${subject.name} Q${i}`);
+        console.log(`  ✅ ${subject.name}: 20 questions created`);
       }
     }
 
     console.log('\n🎉 Seed completed successfully!');
     console.log(`Created:
-    - 1 block (ЕНТ 2025)
-    - 1 variant (Вариант 1)
-    - ${createdSubjects.length} subjects
-    - ${createdSubjects.length * 5} questions
-    - ${createdSubjects.length * 5 * 5} answers
+    - 1 block (2025)
+    - ${createdVariants.length} variants
+    - ${totalSubjects} subjects (${subjectsList.length} per variant)
+    - ${totalQuestions} questions (100 per variant)
+    - ${totalQuestions * 5} answers
     `);
 
   } catch (error) {

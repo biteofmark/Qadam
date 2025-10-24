@@ -1,15 +1,17 @@
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function Footer() {
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
 
   const footerLinks = {
     sections: [
       {
         title: "Разделы",
         links: [
-          { label: "Тесты", href: "/" },
+          { label: "Тесты", href: user ? "/dashboard" : "/" },
           { label: "Рейтинг", href: "/ranking" },
           { label: "Профиль", href: "/profile" },
         ]
@@ -50,7 +52,7 @@ export default function Footer() {
               <div className="h-6 w-6 rounded-md bg-primary flex items-center justify-center">
                 <i className="fas fa-graduation-cap text-primary-foreground text-sm"></i>
               </div>
-              <span className="font-bold text-foreground">ProjectEnt</span>
+              <span className="font-bold text-foreground">Qadam</span>
             </div>
             <p className="text-sm text-muted-foreground">
               Современная платформа для подготовки к ЕНТ с интерактивными тестами и подробной аналитикой.
@@ -83,7 +85,7 @@ export default function Footer() {
         {/* Footer Bottom */}
         <div className="border-t border-border mt-8 pt-8 flex flex-col md:flex-row items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            © 2024 ProjectEnt. Все права защищены.
+            © 2024 Qadam. Все права защищены.
           </p>
           
           {/* Social Links */}

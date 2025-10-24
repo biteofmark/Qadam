@@ -62,7 +62,7 @@ export default function PublicRankingPage() {
                   <BookOpen className="h-6 w-6" />
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold text-white">ProjectEnt</h1>
+                  <h1 className="text-xl font-bold text-white">Qadam</h1>
                   <p className="text-sm text-blue-50">Система тестирования ЕНТ</p>
                 </div>
               </div>
@@ -107,7 +107,7 @@ export default function PublicRankingPage() {
                 <BookOpen className="h-6 w-6" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white">ProjectEnt</h1>
+                <h1 className="text-xl font-bold text-white">Qadam</h1>
                 <p className="text-sm text-blue-50">Система тестирования ЕНТ</p>
               </div>
             </div>

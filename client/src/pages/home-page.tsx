@@ -56,13 +56,13 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-blue-100">
       <Header />
-      <main className="container mx-auto px-4 lg:px-6 py-8">
+      <main className="container mx-auto px-3 md:px-4 lg:px-6 py-4 md:py-8">
         {/* Welcome Section */}
-        <div className="mb-6 md:mb-8">
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
+        <div className="mb-4 md:mb-8 text-left">
+          <h1 className="text-lg md:text-3xl font-bold text-foreground mb-1 md:mb-2">
             Қош келдіңіз, <span className="text-primary">{user?.username}</span>!
           </h1>
-          <p className="text-sm md:text-base text-muted-foreground">
+          <p className="text-xs md:text-base text-muted-foreground">
             ҰБТ-ға дайындалу үшін тест блогын таңдаңыз
           </p>
         </div>
@@ -71,62 +71,59 @@ export default function HomePage() {
 
         {/* Test Blocks Grid */}
         <div className="mb-6 md:mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 md:mb-6 space-y-3 sm:space-y-0">
-            <h2 className="text-xl md:text-2xl font-semibold text-foreground">Тестілеу блоктары</h2>
-            <Button variant="outline" size="sm" className="self-start sm:self-auto">
-              <i className="fas fa-filter mr-2"></i>
-              Сүзгі
-            </Button>
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
             {blocks?.map((block) => (
           <Card 
             key={block.id} 
-            className="group hover:shadow-md transition-all duration-200 cursor-pointer h-full flex flex-col"
+            className="group hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col rounded-sm h-[200px] md:h-[300px]"
             onClick={() => setLocation(`/block/${block.id}`)}
             data-testid={`card-block-${block.id}`}
           >
-            <CardContent className="p-4 md:p-6 flex flex-col h-full flex-grow">
-              {/* Заголовок и иконки */}
-              <div className="flex items-start justify-between mb-3 md:mb-4">
-                <div className="h-10 w-10 md:h-12 md:w-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                  {block.name.includes('Физика') && <i className="fas fa-atom text-blue-500 text-lg md:text-xl"></i>}
-                  {block.name.includes('Химия') && <i className="fas fa-dna text-blue-500 text-lg md:text-xl"></i>}
-                  {block.name.includes('История') && <i className="fas fa-globe text-blue-500 text-lg md:text-xl"></i>}
+            <CardContent className="p-3 md:p-6 flex flex-col h-full flex-grow text-left">
+              {/* Название блока и прогресс */}
+              <div className="flex items-start justify-between gap-2 md:gap-3">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base md:text-2xl lg:text-3xl font-semibold text-foreground mb-1 group-hover:text-primary transition-colors">
+                    {block.name}
+                  </h3>
+                  <p className="text-xs md:text-lg lg:text-xl text-muted-foreground line-clamp-2 mt-1 md:mt-2">
+                    {block.name.includes('Физика') && "Физика мен математика бойынша кешенді дайындық"}
+                    {block.name.includes('Химия') && "Химия мен биология бойынша қарқынды дайындық"}
+                    {block.name.includes('История') && "Қазақстан тарихы мен география бойынша дайындық"}
+                    {!block.name.includes('Физика') && !block.name.includes('Химия') && !block.name.includes('История') && "ҰБТ-ға дайындық тест блогы"}
+                  </p>
                 </div>
-                <div className="flex items-center space-x-1">
-                  {block.hasCalculator && (
-                    <i className="fas fa-calculator text-muted-foreground text-xs md:text-sm" title="Калькулятор қолжетімді"></i>
-                  )}
-                  {block.hasPeriodicTable && (
-                    <i className="fas fa-table text-muted-foreground text-xs md:text-sm" title="Менделеев кестесі қолжетімді"></i>
-                  )}
+                
+                {/* Progress circle */}
+                <div className="relative w-10 h-10 md:w-16 md:h-16 flex-shrink-0">
+                  <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="42"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="6"
+                      strokeLinecap="round"
+                      className="text-muted/20"
+                    />
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="42"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="6"
+                      strokeLinecap="round"
+                      strokeDasharray="263.89"
+                      strokeDashoffset="65.97"
+                      className="text-primary"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-xs md:text-lg font-bold text-primary">75+</span>
+                  </div>
                 </div>
-              </div>
-              
-              {/* Название блока */}
-              <h3 className="text-base md:text-lg font-semibold text-foreground mb-2 group-hover:text-primary transition-colors line-clamp-2">
-                {block.name}
-              </h3>
-              
-              {/* Описание */}
-              <p className="text-xs md:text-sm text-muted-foreground mb-3 md:mb-4 line-clamp-3">
-                {block.name.includes('Физика') && "Физика мен математика бойынша кешенді дайындық және негізгі тақырыптарды терең зерделеу"}
-                {block.name.includes('Химия') && "Медицина жоғары оқу орындарына түсу үшін химия мен биология бойынша қарқынды дайындық"}
-                {block.name.includes('История') && "Қазақстан тарихы мен география бойынша кешенді дайындық"}
-              </p>
-              
-              {/* Статистика */}
-              <div className="flex items-center justify-between text-sm mb-4">
-                <span className="text-muted-foreground">
-                  <i className="fas fa-file-alt mr-1"></i>
-                  {block.variantCount} нұсқа
-                </span>
-                <span className="text-muted-foreground">
-                  <i className="fas fa-clock mr-1"></i>
-                  240 мин
-                </span>
               </div>
               
               {/* Пустое пространство, которое займет всю доступную высоту */}
@@ -134,7 +131,7 @@ export default function HomePage() {
               
               {/* Кнопка - всегда внизу */}
               <Button 
-                className="w-full h-12 rounded-xl bg-blue-500 hover:bg-blue-700 text-white font-semibold mt-auto"
+                className="w-full h-8 md:h-12 rounded-[2px] bg-blue-500 hover:bg-blue-700 text-white font-semibold mt-auto text-xs md:text-base"
                 onClick={(e) => {
                   e.stopPropagation();
                   setLocation(`/block/${block.id}`);

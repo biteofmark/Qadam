@@ -1,6 +1,6 @@
 {
-  "name": "ProjectEnt - Система тестирования ЕНТ",
-  "short_name": "ProjectEnt",
+  "name": "Qadam - Система тестирования ЕНТ",
+  "short_name": "Qadam",
   "description": "Мобильное приложение для подготовки к тестированию ЕНТ с поддержкой офлайн режима",
   "start_url": "/",
   "display": "standalone",

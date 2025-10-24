@@ -22,9 +22,10 @@ export default function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
 
   // Query for unread notification count
+  // Обновляется только при открытии dropdown и после действий (mark as read, delete)
   const { data: unreadCountRaw = 0 } = useQuery<number>({
     queryKey: ["/api/notifications/unread-count"],
-    refetchInterval: 30000, // Refresh every 30 seconds
+    // refetchInterval убран - обновление только по действиям пользователя
   });
   const unreadCount = Number(unreadCountRaw || 0);
 
@@ -32,6 +33,7 @@ export default function NotificationBell() {
   const { data: notificationsData, isLoading } = useQuery<any>({
     queryKey: ["/api/notifications", { limit: 10 }],
     enabled: isOpen, // Only fetch when dropdown is open
+    refetchOnMount: true, // Обновить при открытии dropdown
   });
 
   // Mutation to mark notification as read

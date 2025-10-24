@@ -644,7 +644,7 @@ export default function TestPage() {
                         size="sm"
                         onClick={handleOpenCalculator}
                         data-testid="button-calculator-mini"
-                        className="h-6 w-6 p-0"
+                        className="h-6 w-6 p-2 min-h-[32px] min-w-[32px]"
                       >
                         <i className="fas fa-calculator text-xs"></i>
                       </Button>
@@ -655,7 +655,7 @@ export default function TestPage() {
                         size="sm"
                         onClick={handleOpenPeriodicTable}
                         data-testid="button-periodic-table-mini"
-                        className="h-6 w-6 p-0"
+                        className="h-6 w-6 p-2 min-h-[32px] min-w-[32px]"
                       >
                         <i className="fas fa-table text-xs"></i>
                       </Button>

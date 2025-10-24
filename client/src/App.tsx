@@ -23,7 +23,7 @@ import RankingPage from "@/pages/ranking-page";
 import { ProtectedRoute } from "./lib/protected-route";
 
 // Lazy load heavy pages for better performance
-const AdminPage = lazy(() => import("@/pages/admin-page"));
+const AdminPage = lazy(() => import("@/pages/admin-simple"));
 const AnalyticsPage = lazy(() => import("@/pages/analytics-page"));
 
 // Loading fallback component

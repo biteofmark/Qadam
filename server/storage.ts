@@ -5,9 +5,10 @@ import { type User, type InsertUser, type Block, type InsertBlock, type Variant,
          type Reminder, type InsertReminder, type NotificationType,
          type AnalyticsOverview, type SubjectAggregate, type HistoryPoint, type CorrectnessBreakdown, type ComparisonStats,
          type ExportJob, type InsertExportJob, type ExportType,
+         type Quote, type InsertQuote,
          users, blocks, variants, subjects, questions, answers, testResults,
          subjectProgress as subjectProgressTable, notifications, notificationSettings,
-         reminders, exportJobs } from "@shared/schema";
+         reminders, exportJobs, systemSettings, quotes } from "@shared/schema";
 import { randomUUID } from "crypto";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -32,6 +33,7 @@ export interface IStorage {
   createBlock(block: InsertBlock): Promise<Block>;
   updateBlock(id: string, block: Partial<InsertBlock>): Promise<Block | undefined>;
   deleteBlock(id: string): Promise<void>;
+  reorderBlocks(ids: string[]): Promise<void>;
   
   // Variants
   getVariantsByBlock(blockId: string): Promise<Variant[]>;
@@ -39,6 +41,7 @@ export interface IStorage {
   createVariant(variant: InsertVariant): Promise<Variant>;
   updateVariant(id: string, variant: Partial<InsertVariant>): Promise<Variant | undefined>;
   deleteVariant(id: string): Promise<void>;
+  reorderVariants(blockId: string, ids: string[]): Promise<void>;
   
   // Subjects
   getSubjectsByVariant(variantId: string): Promise<Subject[]>;
@@ -46,6 +49,7 @@ export interface IStorage {
   createSubject(subject: InsertSubject): Promise<Subject>;
   updateSubject(id: string, subject: Partial<InsertSubject>): Promise<Subject | undefined>;
   deleteSubject(id: string): Promise<void>;
+  reorderSubjects(variantId: string, ids: string[]): Promise<void>;
   copySubjects(sourceVariantId: string, targetVariantId: string, subjectIds: string[]): Promise<Subject[]>;
   
   // Questions
@@ -54,6 +58,7 @@ export interface IStorage {
   createQuestion(question: InsertQuestion): Promise<Question>;
   updateQuestion(id: string, question: Partial<InsertQuestion>): Promise<Question | undefined>;
   deleteQuestion(id: string): Promise<void>;
+  reorderQuestions(subjectId: string, ids: string[]): Promise<void>;
   
   // Answers
   getAnswersByQuestion(questionId: string): Promise<Answer[]>;
@@ -61,6 +66,7 @@ export interface IStorage {
   createAnswer(answer: InsertAnswer): Promise<Answer>;
   updateAnswer(id: string, answer: Partial<InsertAnswer>): Promise<Answer | undefined>;
   deleteAnswer(id: string): Promise<void>;
+  reorderAnswers(questionId: string, ids: string[]): Promise<void>;
   
   // Test Results
   createTestResult(result: InsertTestResult): Promise<TestResult>;
@@ -69,6 +75,7 @@ export interface IStorage {
   getUserRanking(userId: string): Promise<UserRanking | undefined>;
   updateUserRanking(userId: string): Promise<void>;
   getAllRankings(): Promise<UserRanking[]>;
+  getTodayBestResult(): Promise<{ score: number } | undefined>;
   
   // Subject Progress
   getSubjectProgress(userId: string): Promise<SubjectProgress[]>;
@@ -122,6 +129,19 @@ export interface IStorage {
   
   // Video Recordings
   // Video recording methods removed
+  
+  // System Settings
+  getSystemSetting(key: string): Promise<{ key: string; value: string } | undefined>;
+  updateSystemSetting(key: string, value: string, updatedBy: string): Promise<{ key: string; value: string }>;
+  
+  // Quotes
+  getAllQuotes(): Promise<Quote[]>;
+  getQuotesByMonth(month: number): Promise<Quote[]>;
+  getCurrentQuote(): Promise<Quote | null>;
+  createQuote(quote: InsertQuote): Promise<Quote>;
+  updateQuote(id: string, quote: Partial<InsertQuote>): Promise<Quote | undefined>;
+  deleteQuote(id: string): Promise<void>;
+  reorderQuotes(month: number, ids: string[]): Promise<void>;
   
   sessionStore: session.Store;
 }
@@ -321,7 +341,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllBlocks(): Promise<Block[]> {
-    return await db.select().from(blocks);
+    return await db.select().from(blocks).orderBy(asc(blocks.order));
   }
 
   async getPublicBlocks(): Promise<(Block & { variantCount: number; totalQuestions: number })[]> {
@@ -329,6 +349,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         id: blocks.id,
         name: blocks.name,
+        order: blocks.order,
         hasCalculator: blocks.hasCalculator,
         hasPeriodicTable: blocks.hasPeriodicTable,
         variantCount: count(variants.id),
@@ -340,7 +361,8 @@ export class DatabaseStorage implements IStorage {
       })
       .from(blocks)
       .leftJoin(variants, eq(variants.blockId, blocks.id))
-      .groupBy(blocks.id, blocks.name, blocks.hasCalculator, blocks.hasPeriodicTable);
+      .groupBy(blocks.id, blocks.name, blocks.order, blocks.hasCalculator, blocks.hasPeriodicTable)
+      .orderBy(asc(blocks.order));
     
     return result;
   }
@@ -376,8 +398,15 @@ export class DatabaseStorage implements IStorage {
     await db.delete(blocks).where(eq(blocks.id, id));
   }
 
+  async reorderBlocks(ids: string[]): Promise<void> {
+    // Update order for each block based on position in array
+    for (let i = 0; i < ids.length; i++) {
+      await db.update(blocks).set({ order: i }).where(eq(blocks.id, ids[i]));
+    }
+  }
+
   async getVariantsByBlock(blockId: string): Promise<Variant[]> {
-    return await db.select().from(variants).where(eq(variants.blockId, blockId));
+    return await db.select().from(variants).where(eq(variants.blockId, blockId)).orderBy(asc(variants.order));
   }
 
   async getFreeVariants(): Promise<(Variant & { block: Block })[]> {
@@ -386,10 +415,12 @@ export class DatabaseStorage implements IStorage {
         id: variants.id,
         blockId: variants.blockId,
         name: variants.name,
+        order: variants.order,
         isFree: variants.isFree,
         block: {
           id: blocks.id,
           name: blocks.name,
+          order: blocks.order,
           hasCalculator: blocks.hasCalculator,
           hasPeriodicTable: blocks.hasPeriodicTable,
         }
@@ -397,12 +428,13 @@ export class DatabaseStorage implements IStorage {
       .from(variants)
       .innerJoin(blocks, eq(variants.blockId, blocks.id))
       .where(eq(variants.isFree, true))
-      .orderBy(blocks.name, variants.name);
+      .orderBy(blocks.order, variants.order);
     
     return freeVariants.map(row => ({
       id: row.id,
       blockId: row.blockId,
       name: row.name,
+      order: row.order,
       isFree: row.isFree,
       block: row.block
     }));
@@ -434,8 +466,14 @@ export class DatabaseStorage implements IStorage {
     await db.delete(variants).where(eq(variants.id, id));
   }
 
+  async reorderVariants(blockId: string, ids: string[]): Promise<void> {
+    for (let i = 0; i < ids.length; i++) {
+      await db.update(variants).set({ order: i }).where(eq(variants.id, ids[i]));
+    }
+  }
+
   async getSubjectsByVariant(variantId: string): Promise<Subject[]> {
-    return await db.select().from(subjects).where(eq(subjects.variantId, variantId));
+    return await db.select().from(subjects).where(eq(subjects.variantId, variantId)).orderBy(asc(subjects.order));
   }
 
   async getSubject(id: string): Promise<Subject | undefined> {
@@ -462,6 +500,12 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSubject(id: string): Promise<void> {
     await db.delete(subjects).where(eq(subjects.id, id));
+  }
+
+  async reorderSubjects(variantId: string, ids: string[]): Promise<void> {
+    for (let i = 0; i < ids.length; i++) {
+      await db.update(subjects).set({ order: i }).where(eq(subjects.id, ids[i]));
+    }
   }
 
   async copySubjects(sourceVariantId: string, targetVariantId: string, subjectIds: string[]): Promise<Subject[]> {
@@ -510,7 +554,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getQuestionsBySubject(subjectId: string): Promise<Question[]> {
-    return await db.select().from(questions).where(eq(questions.subjectId, subjectId));
+    return await db.select().from(questions).where(eq(questions.subjectId, subjectId)).orderBy(asc(questions.order));
   }
 
   async getQuestion(id: string): Promise<Question | undefined> {
@@ -539,8 +583,14 @@ export class DatabaseStorage implements IStorage {
     await db.delete(questions).where(eq(questions.id, id));
   }
 
+  async reorderQuestions(subjectId: string, ids: string[]): Promise<void> {
+    for (let i = 0; i < ids.length; i++) {
+      await db.update(questions).set({ order: i }).where(eq(questions.id, ids[i]));
+    }
+  }
+
   async getAnswersByQuestion(questionId: string): Promise<Answer[]> {
-    return await db.select().from(answers).where(eq(answers.questionId, questionId));
+    return await db.select().from(answers).where(eq(answers.questionId, questionId)).orderBy(asc(answers.order));
   }
 
   async getAnswer(id: string): Promise<Answer | undefined> {
@@ -570,6 +620,12 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAnswer(id: string): Promise<void> {
     await db.delete(answers).where(eq(answers.id, id));
+  }
+
+  async reorderAnswers(questionId: string, ids: string[]): Promise<void> {
+    for (let i = 0; i < ids.length; i++) {
+      await db.update(answers).set({ order: i }).where(eq(answers.id, ids[i]));
+    }
   }
 
   async createTestResult(insertResult: InsertTestResult): Promise<TestResult> {
@@ -638,6 +694,37 @@ export class DatabaseStorage implements IStorage {
     }
     
     return rankings.sort((a, b) => (b.totalScore || 0) - (a.totalScore || 0));
+  }
+
+  async getTodayBestResult(): Promise<{ score: number } | undefined> {
+    try {
+      // Get all results and filter by date in JavaScript to avoid timezone issues
+      const allResults = await db
+        .select({ score: testResults.score, completedAt: testResults.completedAt })
+        .from(testResults)
+        .orderBy(desc(testResults.score))
+        .limit(100); // Get top 100 to be safe
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // Filter results from today
+      const todayResults = allResults.filter(result => {
+        if (!result.completedAt) return false;
+        const resultDate = new Date(result.completedAt);
+        return resultDate >= today;
+      });
+      
+      if (todayResults.length === 0) {
+        return { score: 0 };
+      }
+      
+      // Return the best score
+      return { score: todayResults[0].score };
+    } catch (error) {
+      console.error('[Storage] Error fetching today best result:', error);
+      return { score: 0 };
+    }
   }
 
   async getSubjectProgress(userId: string): Promise<SubjectProgress[]> {
@@ -1245,6 +1332,96 @@ export class DatabaseStorage implements IStorage {
       userLimit.count += 1;
       userLimit.concurrent += 1;
       this.exportRateLimit.set(userId, userLimit);
+    }
+  }
+
+  // System Settings
+  async getSystemSetting(key: string): Promise<{ key: string; value: string } | undefined> {
+    try {
+      const [setting] = await db
+        .select({ key: systemSettings.key, value: systemSettings.value })
+        .from(systemSettings)
+        .where(eq(systemSettings.key, key))
+        .limit(1);
+      return setting;
+    } catch (error) {
+      console.error('[Storage] Error getting system setting:', error);
+      return undefined;
+    }
+  }
+
+  async updateSystemSetting(key: string, value: string, updatedBy: string): Promise<{ key: string; value: string }> {
+    try {
+      // Try to update existing setting
+      const [updated] = await db
+        .update(systemSettings)
+        .set({ value, updatedAt: new Date(), updatedBy })
+        .where(eq(systemSettings.key, key))
+        .returning({ key: systemSettings.key, value: systemSettings.value });
+
+      if (updated) {
+        return updated;
+      }
+
+      // If not exists, insert new setting
+      const [created] = await db
+        .insert(systemSettings)
+        .values({ key, value, updatedBy })
+        .returning({ key: systemSettings.key, value: systemSettings.value });
+
+      return created;
+    } catch (error) {
+      console.error('[Storage] Error updating system setting:', error);
+      throw error;
+    }
+  }
+
+  // Quotes
+  async getAllQuotes(): Promise<Quote[]> {
+    return await db.select().from(quotes).orderBy(asc(quotes.month), asc(quotes.order));
+  }
+
+  async getQuotesByMonth(month: number): Promise<Quote[]> {
+    return await db.select().from(quotes).where(eq(quotes.month, month)).orderBy(asc(quotes.order));
+  }
+
+  async getCurrentQuote(): Promise<Quote | null> {
+    const currentMonth = new Date().getMonth() + 1; // JavaScript months are 0-indexed
+    const monthQuotes = await this.getQuotesByMonth(currentMonth);
+    
+    if (monthQuotes.length === 0) {
+      return null;
+    }
+    
+    // Get current day of month (1-31) to determine which quote to show
+    const dayOfMonth = new Date().getDate();
+    const quoteIndex = (dayOfMonth - 1) % monthQuotes.length;
+    
+    return monthQuotes[quoteIndex];
+  }
+
+  async createQuote(quote: InsertQuote): Promise<Quote> {
+    const [newQuote] = await db.insert(quotes).values(quote).returning();
+    return newQuote;
+  }
+
+  async updateQuote(id: string, quote: Partial<InsertQuote>): Promise<Quote | undefined> {
+    const [updated] = await db.update(quotes)
+      .set({ ...quote, updatedAt: new Date() })
+      .where(eq(quotes.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteQuote(id: string): Promise<void> {
+    await db.delete(quotes).where(eq(quotes.id, id));
+  }
+
+  async reorderQuotes(month: number, ids: string[]): Promise<void> {
+    for (let i = 0; i < ids.length; i++) {
+      await db.update(quotes)
+        .set({ order: i })
+        .where(and(eq(quotes.id, ids[i]), eq(quotes.month, month)));
     }
   }
 

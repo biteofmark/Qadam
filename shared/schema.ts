@@ -66,6 +66,7 @@ export const blocks = pgTable("blocks", {
   name: text("name").notNull().unique(),
   hasCalculator: boolean("has_calculator").default(false),
   hasPeriodicTable: boolean("has_periodic_table").default(false),
+  order: integer("order").default(0),
   // Column `requires_proctoring` removed as video proctoring has been deprecated
 });
 
@@ -74,12 +75,14 @@ export const variants = pgTable("variants", {
   blockId: varchar("block_id").notNull().references(() => blocks.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   isFree: boolean("is_free").default(false),
+  order: integer("order").default(0),
 });
 
 export const subjects = pgTable("subjects", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   variantId: varchar("variant_id").notNull().references(() => variants.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
+  order: integer("order").default(0),
 });
 
 export const questions = pgTable("questions", {
@@ -88,6 +91,7 @@ export const questions = pgTable("questions", {
   text: text("text").notNull(),
   imageUrl: text("image_url"), // URL изображения для вопроса
   solutionImageUrl: text("solution_image_url"), // URL изображения с решением (показывается после теста)
+  order: integer("order").default(0),
 });
 
 export const answers = pgTable("answers", {
@@ -95,6 +99,7 @@ export const answers = pgTable("answers", {
   questionId: varchar("question_id").notNull().references(() => questions.id, { onDelete: "cascade" }),
   text: text("text").notNull(),
   isCorrect: boolean("is_correct").default(false),
+  order: integer("order").default(0),
 });
 
 export const testResults = pgTable("test_results", {
@@ -126,6 +131,26 @@ export const userRankings = pgTable("user_rankings", {
   lastUpdated: timestamp("last_updated").defaultNow(),
 });
 
+// System settings table
+export const systemSettings = pgTable("system_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: text("key").notNull().unique(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: varchar("updated_by").references(() => users.id),
+});
+
+// Quotes table
+export const quotes = pgTable("quotes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  text: text("text").notNull(),
+  author: text("author").notNull(),
+  month: integer("month").notNull(), // 1-12 для месяцев
+  order: integer("order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Video proctoring schema removed
 
 // Insert schemas
@@ -155,6 +180,8 @@ export const insertAnswerSchema = createInsertSchema(answers).omit({
   id: true,
 });
 
+export const updateAnswerSchema = insertAnswerSchema.partial();
+
 export const insertTestResultSchema = createInsertSchema(testResults).omit({
   id: true,
   completedAt: true,
@@ -174,6 +201,12 @@ export const insertReminderSchema = createInsertSchema(reminders).omit({
   id: true,
   createdAt: true,
   lastSentAt: true,
+});
+
+export const insertQuoteSchema = createInsertSchema(quotes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
 });
 
 // insertVideoRecordingSchema removed with video proctoring
@@ -258,6 +291,9 @@ export type InsertNotificationSettings = z.infer<typeof insertNotificationSettin
 
 export type Reminder = typeof reminders.$inferSelect;
 export type InsertReminder = z.infer<typeof insertReminderSchema>;
+
+export type Quote = typeof quotes.$inferSelect;
+export type InsertQuote = z.infer<typeof insertQuoteSchema>;
 
 // Analytics types
 export type AnalyticsOverview = z.infer<typeof analyticsOverviewSchema>;

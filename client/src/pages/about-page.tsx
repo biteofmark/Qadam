@@ -15,7 +15,7 @@ export default function AboutPage() {
                 <BookOpen className="h-6 w-6" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white">ProjectEnt</h1>
+                <h1 className="text-xl font-bold text-white">Qadam</h1>
                 <p className="text-sm text-blue-50">Система тестирования ЕНТ</p>
               </div>
             </div>
@@ -62,7 +62,7 @@ export default function AboutPage() {
         {/* Hero Section */}
         <div className="text-center mb-16">
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-6">
-            О проекте ProjectEnt
+            О проекте Qadam
           </h1>
           <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto leading-relaxed">
             Современная платформа для подготовки к Единому национальному тестированию, 

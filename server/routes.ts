@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
-import { insertBlockSchema, insertVariantSchema, insertSubjectSchema, insertQuestionSchema, insertAnswerSchema, insertTestResultSchema,
+import { insertBlockSchema, insertVariantSchema, insertSubjectSchema, insertQuestionSchema, insertAnswerSchema, updateAnswerSchema, insertTestResultSchema,
          insertNotificationSchema, insertNotificationSettingsSchema, insertReminderSchema, notificationTypeSchema,
          analyticsOverviewSchema, subjectAggregateSchema, historyPointSchema, correctnessBreakdownSchema, comparisonStatsSchema,
          insertExportJobSchema, exportTypeSchema, exportFormatSchema, exportOptionsSchema } from "@shared/schema";
@@ -196,6 +196,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reorder blocks
+  app.post("/api/blocks/reorder", requireAdmin, async (req, res) => {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids)) {
+        return res.status(400).json({ message: "ids должен быть массивом" });
+      }
+      await storage.reorderBlocks(ids);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка изменения порядка блоков" });
+    }
+  });
+
   // Variants routes
   app.get("/api/blocks/:blockId/variants", async (req, res) => {
     try {
@@ -250,6 +264,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reorder variants
+  app.post("/api/variants/reorder", requireAdmin, async (req, res) => {
+    try {
+      const { blockId, ids } = req.body;
+      if (!blockId || !Array.isArray(ids)) {
+        return res.status(400).json({ message: "blockId и ids обязательны" });
+      }
+      await storage.reorderVariants(blockId, ids);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка изменения порядка вариантов" });
+    }
+  });
+
   // Subjects routes
   app.get("/api/variants/:variantId/subjects", async (req, res) => {
     try {
@@ -289,6 +317,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "Ошибка удаления предмета" });
+    }
+  });
+
+  // Reorder subjects
+  app.post("/api/subjects/reorder", requireAdmin, async (req, res) => {
+    try {
+      const { variantId, ids } = req.body;
+      if (!variantId || !Array.isArray(ids)) {
+        return res.status(400).json({ message: "variantId и ids обязательны" });
+      }
+      await storage.reorderSubjects(variantId, ids);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка изменения порядка предметов" });
+    }
+  });
+
+  // Bulk import subject with questions
+  app.post("/api/subjects/bulk-import", requireAdmin, async (req, res) => {
+    try {
+      const { variantId, bulkData } = req.body;
+      
+      if (!variantId || !bulkData) {
+        return res.status(400).json({ message: "variantId и bulkData обязательны" });
+      }
+
+      // Validate bulk data structure
+      if (!bulkData.name || !Array.isArray(bulkData.questions)) {
+        return res.status(400).json({ message: "Неверная структура данных. Требуются поля: name, questions" });
+      }
+
+      // Validate questions structure
+      for (const question of bulkData.questions) {
+        if (!question.text || !Array.isArray(question.answers)) {
+          return res.status(400).json({ message: "Каждый вопрос должен содержать text и answers" });
+        }
+        
+        if (question.answers.length !== 5 && question.answers.length !== 8) {
+          return res.status(400).json({ message: "Количество ответов должно быть 5 или 8" });
+        }
+
+        const correctAnswers = question.answers.filter((a: any) => a.isCorrect);
+        if (question.answers.length === 5 && correctAnswers.length !== 1) {
+          return res.status(400).json({ message: "Для 5 ответов должен быть 1 правильный" });
+        }
+        if (question.answers.length === 8 && correctAnswers.length !== 3) {
+          return res.status(400).json({ message: "Для 8 ответов должно быть 3 правильных" });
+        }
+      }
+
+      // Create subject
+      const subjectData = insertSubjectSchema.parse({
+        name: bulkData.name,
+        variantId: variantId
+      });
+      const subject = await storage.createSubject(subjectData);
+
+      // Create questions and answers
+      for (let i = 0; i < bulkData.questions.length; i++) {
+        const questionData = bulkData.questions[i];
+        
+        const question = await storage.createQuestion({
+          text: questionData.text,
+          subjectId: subject.id,
+          order: i + 1,
+          imageUrl: null,
+          solutionImageUrl: null
+        });
+
+        // Create answers
+        for (let j = 0; j < questionData.answers.length; j++) {
+          const answerData = questionData.answers[j];
+          await storage.createAnswer({
+            text: answerData.text,
+            isCorrect: answerData.isCorrect,
+            questionId: question.id,
+            order: j + 1
+          });
+        }
+      }
+
+      res.status(201).json({ 
+        success: true, 
+        subject,  
+        questionsCount: bulkData.questions.length 
+      });
+    } catch (error) {
+      console.error("Bulk import error:", error);
+      res.status(500).json({ message: "Ошибка массовой загрузки" });
     }
   });
 
@@ -334,6 +451,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reorder questions
+  app.post("/api/questions/reorder", requireAdmin, async (req, res) => {
+    try {
+      const { subjectId, ids } = req.body;
+      if (!subjectId || !Array.isArray(ids)) {
+        return res.status(400).json({ message: "subjectId и ids обязательны" });
+      }
+      await storage.reorderQuestions(subjectId, ids);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка изменения порядка вопросов" });
+    }
+  });
+
   // Answers routes
   app.get("/api/questions/:questionId/answers", async (req, res) => {
     try {
@@ -356,13 +487,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/answers/:id", requireAdmin, async (req, res) => {
     try {
-      const validatedData = insertAnswerSchema.parse(req.body);
+      const validatedData = updateAnswerSchema.parse(req.body);
       const answer = await storage.updateAnswer(req.params.id, validatedData);
       if (!answer) {
         return res.status(404).json({ message: "Ответ не найден" });
       }
       res.json(answer);
     } catch (error) {
+      console.error("Error updating answer:", error);
       res.status(400).json({ message: "Ошибка обновления ответа" });
     }
   });
@@ -373,6 +505,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "Ошибка удаления ответа" });
+    }
+  });
+
+  // Reorder answers
+  app.post("/api/answers/reorder", requireAdmin, async (req, res) => {
+    try {
+      const { questionId, ids } = req.body;
+      if (!questionId || !Array.isArray(ids)) {
+        return res.status(400).json({ message: "questionId и ids обязательны" });
+      }
+      await storage.reorderAnswers(questionId, ids);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка изменения порядка ответов" });
+    }
+  });
+
+  // Reorder answers by question ID
+  app.put("/api/questions/:questionId/reorder-answers", requireAdmin, async (req, res) => {
+    try {
+      const { answerIds } = req.body;
+      if (!Array.isArray(answerIds)) {
+        return res.status(400).json({ message: "answerIds обязательны и должны быть массивом" });
+      }
+      await storage.reorderAnswers(req.params.questionId, answerIds);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Ошибка изменения порядка ответов" });
     }
   });
 
@@ -847,6 +1007,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Best result for today (all users)
+  app.get("/api/rankings/today-best", async (req, res) => {
+    try {
+      const bestResult = await storage.getTodayBestResult();
+      if (!bestResult) {
+        return res.json({ score: 0 });
+      }
+      res.json({ score: bestResult.score });
+    } catch (error) {
+      console.error('[API] Error fetching today best result:', error);
+      res.status(500).json({ message: "Ошибка получения лучшего результата" });
+    }
+  });
+
   // Analytics routes
   app.get("/api/analytics/overview", requireAuth, async (req, res) => {
     try {
@@ -1315,111 +1489,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Clear all test data (admin only)
-  app.post("/api/admin/clear-data", requireAdmin, async (req, res) => {
+  // System settings endpoints
+  app.get("/api/settings/:key", async (req, res) => {
     try {
-      console.log('[API] Clearing all test data...');
+      const { key } = req.params;
+      const setting = await storage.getSystemSetting(key);
       
-      const { db } = await import('./db');
-      const { blocks, variants, subjects, questions, answers, testResults } = await import('@shared/schema');
+      if (!setting) {
+        return res.status(404).json({ message: "Настройка не найдена" });
+      }
       
-      // Delete in correct order (cascade will handle most, but being explicit)
-      await db.delete(testResults);
-      await db.delete(answers);
-      await db.delete(questions);
-      await db.delete(subjects);
-      await db.delete(variants);
-      await db.delete(blocks);
-      
-      console.log('[API] All test data cleared');
-      res.json({ message: 'All test data cleared successfully!' });
+      res.json({ key: setting.key, value: setting.value });
     } catch (error) {
-      console.error('[API] Error clearing data:', error);
-      res.status(500).json({ message: 'Error clearing data: ' + (error as Error).message });
+      console.error('[API] Error fetching setting:', error);
+      res.status(500).json({ message: "Ошибка получения настройки" });
     }
   });
-  
-  // Seed database with test data (admin only)
-  app.post("/api/admin/seed-data", requireAdmin, async (req, res) => {
+
+  app.put("/api/admin/settings/:key", requireAdmin, async (req, res) => {
     try {
-      console.log('[API] Starting database seed...');
+      const { key } = req.params;
+      const { value } = req.body;
       
-      const { db } = await import('./db');
-      const { blocks, variants, subjects, questions, answers } = await import('@shared/schema');
+      if (!value) {
+        return res.status(400).json({ message: "Значение обязательно" });
+      }
       
-      // 1. Создаем блок "ЕНТ 2025"
-      const [block] = await db.insert(blocks).values({
-        name: 'ЕНТ 2025',
-        hasCalculator: true,
-        hasPeriodicTable: true
-      }).returning();
-
-      // 2. Создаем вариант "Вариант 1" (бесплатный)
-      const [variant] = await db.insert(variants).values({
-        blockId: block.id,
-        name: 'Вариант 1',
-        isFree: true,
-        duration: 215, // 3 часа 35 минут
-        questionsPerSubject: 20
-      }).returning();
-
-      // 3. Создаем предметы (стандартный ЕНТ)
-      const subjectsList = [
-        { name: 'Математическая грамотность' },
-        { name: 'Грамотность чтения' },
-        { name: 'История Казахстана' },
-        { name: 'Математика' },
-        { name: 'Физика' }
-      ];
-
-      const createdSubjects = [];
-      for (const subj of subjectsList) {
-        const [subject] = await db.insert(subjects).values({
-          variantId: variant.id,
-          name: subj.name
-        }).returning();
-        createdSubjects.push(subject);
-      }
-
-      // 4. Создаем вопросы для каждого предмета (по 20 вопросов)
-      let totalQuestions = 0;
-      for (const subject of createdSubjects) {
-        for (let i = 1; i <= 20; i++) {
-          const [question] = await db.insert(questions).values({
-            subjectId: subject.id,
-            text: `${subject.name} - Вопрос ${i}`
-          }).returning();
-
-          // Создаем ответы
-          const answerOptions = ['A', 'B', 'C', 'D', 'E'];
-          for (let j = 0; j < 5; j++) {
-            await db.insert(answers).values({
-              questionId: question.id,
-              text: `Ответ ${answerOptions[j]}`,
-              isCorrect: j === 0
-            });
-          }
-          totalQuestions++;
-        }
-      }
-
-      console.log('[API] Seed completed successfully');
-      res.json({
-        message: 'Database seeded successfully!',
-        data: {
-          blocks: 1,
-          variants: 1,
-          subjects: createdSubjects.length,
-          questions: totalQuestions,
-          answers: totalQuestions * 5
-        }
-      });
+      const setting = await storage.updateSystemSetting(key, value, req.user!.id);
+      res.json(setting);
     } catch (error) {
-      console.error('[API] Error seeding database:', error);
-      res.status(500).json({ message: 'Error seeding database: ' + (error as Error).message });
+      console.error('[API] Error updating setting:', error);
+      res.status(500).json({ message: "Ошибка обновления настройки" });
     }
   });
-  
+
   // Admin user management endpoints
   app.get("/api/admin/users", requireAdmin, async (req, res) => {
     try {
@@ -1485,6 +1588,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('[API] Error copying subjects:', error);
       res.status(500).json({ message: "Ошибка копирования предметов" });
+    }
+  });
+
+  // Quotes management endpoints
+  app.get("/api/quotes", async (req, res) => {
+    try {
+      const quotes = await storage.getAllQuotes();
+      res.json(quotes);
+    } catch (error) {
+      console.error('[API] Error fetching quotes:', error);
+      res.status(500).json({ message: "Ошибка загрузки цитат" });
+    }
+  });
+
+  app.get("/api/quotes/month/:month", async (req, res) => {
+    try {
+      const month = parseInt(req.params.month);
+      if (month < 1 || month > 12) {
+        return res.status(400).json({ message: "Месяц должен быть от 1 до 12" });
+      }
+      const quotes = await storage.getQuotesByMonth(month);
+      res.json(quotes);
+    } catch (error) {
+      console.error('[API] Error fetching quotes for month:', error);
+      res.status(500).json({ message: "Ошибка загрузки цитат" });
+    }
+  });
+
+  app.get("/api/quotes/current", async (req, res) => {
+    try {
+      const quote = await storage.getCurrentQuote();
+      res.json(quote);
+    } catch (error) {
+      console.error('[API] Error fetching current quote:', error);
+      res.status(500).json({ message: "Ошибка загрузки цитаты" });
+    }
+  });
+
+  app.post("/api/admin/quotes", requireAdmin, async (req, res) => {
+    try {
+      const { text, author, month } = req.body;
+      if (!text || !author || !month) {
+        return res.status(400).json({ message: "Требуются text, author и month" });
+      }
+      const quote = await storage.createQuote({ text, author, month, order: 0 });
+      res.status(201).json(quote);
+    } catch (error) {
+      console.error('[API] Error creating quote:', error);
+      res.status(500).json({ message: "Ошибка создания цитаты" });
+    }
+  });
+
+  app.put("/api/admin/quotes/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { text, author, month } = req.body;
+      const quote = await storage.updateQuote(id, { text, author, month });
+      res.json(quote);
+    } catch (error) {
+      console.error('[API] Error updating quote:', error);
+      res.status(500).json({ message: "Ошибка обновления цитаты" });
+    }
+  });
+
+  app.delete("/api/admin/quotes/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteQuote(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('[API] Error deleting quote:', error);
+      res.status(500).json({ message: "Ошибка удаления цитаты" });
+    }
+  });
+
+  app.post("/api/admin/quotes/reorder", requireAdmin, async (req, res) => {
+    try {
+      const { month, ids } = req.body;
+      if (!month || !ids || !Array.isArray(ids)) {
+        return res.status(400).json({ message: "Требуются month и массив ids" });
+      }
+      await storage.reorderQuotes(month, ids);
+      res.json({ message: "Порядок цитат обновлен" });
+    } catch (error) {
+      console.error('[API] Error reordering quotes:', error);
+      res.status(500).json({ message: "Ошибка изменения порядка цитат" });
     }
   });
 

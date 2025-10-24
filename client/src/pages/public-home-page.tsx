@@ -41,7 +41,7 @@ export default function PublicHomePage() {
                 <BookOpen className="h-6 w-6" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white">ProjectEnt</h1>
+                <h1 className="text-xl font-bold text-white">Qadam</h1>
                 <p className="text-sm text-blue-50">ҰБТ тестілеу жүйесі</p>
               </div>
             </div>
@@ -77,69 +77,69 @@ export default function PublicHomePage() {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="py-16 md:py-20 lg:py-24 min-h-[70vh] relative w-full">
+      {/* Hero Section - reduced height */}
+      <section className="py-8 md:py-16 lg:py-20 min-h-[50vh] md:min-h-[60vh] relative w-full">
         {/* Background with glass effect */}
         <div className="absolute inset-0 bg-cover bg-center bg-no-repeat" style={{backgroundImage: 'url("/1123.png")'}}></div>
         <div className="absolute inset-0 bg-black/20 backdrop-blur-[1px]"></div>
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-blue-700/30"></div>
         
-        <div className="container mx-auto px-4 lg:px-6 relative z-20 h-full flex flex-col">
-          {/* Text aligned with logo */}
-          <div className="text-center md:text-left pt-8 md:pt-16">
+        <div className="container mx-auto px-4 lg:px-6 relative z-20 h-full flex flex-col justify-between">
+          {/* Text aligned left on mobile */}
+          <div className="text-left pt-4 md:pt-12">
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-white mb-4 md:mb-6 leading-tight">
               ҰБТ-ға дайындық
             </h1>
-            <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-blue-50 mb-6 md:mb-8 max-w-2xl leading-relaxed mx-auto md:mx-0">
+            <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-blue-50 mb-6 md:mb-8 max-w-2xl leading-relaxed">
               ҰБТ тесттерінің тегін нұсқаларын тапсырыңыз. Бейімделгіш тестілеу жүйесі 
               сіздің білім деңгейіңізді анықтап, емтиханға дайындалуға көмектеседі.
             </p>
-            
-            {/* Button right under text */}
-            <div className="text-center md:text-left">
-              <Link href="/auth">
-                <Button size="lg" className="bg-blue-500 text-white hover:bg-blue-700 font-medium px-6 md:px-8 py-6 md:py-8 text-base md:text-lg rounded-lg min-h-[60px] md:min-h-[80px] w-full sm:w-auto">
-                  Тегін тіркелу
-                </Button>
-              </Link>
-            </div>
+          </div>
+          
+          {/* Button with 120px gap and slight rounding */}
+          <div className="text-left pb-4 md:pb-8" style={{ marginTop: '120px' }}>
+            <Link href="/auth">
+              <Button size="lg" className="bg-blue-500 text-white hover:bg-blue-700 font-medium px-8 py-3 md:px-12 md:py-5 text-sm md:text-lg rounded-[2px] h-11 md:h-14 w-auto">
+                Тегін тіркелу
+              </Button>
+            </Link>
           </div>
         </div>
       </section>
 
-      {/* Features Cards */}
+      {/* Features Cards - almost square */}
       <section className="relative -mt-8 md:-mt-16 z-20 mb-8 md:mb-16">
         <div className="container mx-auto px-4 md:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 lg:gap-12 max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 lg:gap-12 max-w-6xl mx-auto">
             <Link href="/public-ranking">
-              <div className="bg-white shadow-lg rounded-lg p-4 md:p-6 hover:shadow-xl hover:bg-blue-50 transition-all cursor-pointer min-h-[200px] md:min-h-[224px]">
-                <div className="flex items-start gap-3 md:gap-4 mb-3 md:mb-4">
-                  <Trophy className="h-8 w-8 md:h-12 md:w-12 text-blue-500 flex-shrink-0" />
-                  <span className="text-gray-800 font-semibold text-xl md:text-2xl lg:text-3xl">Рейтингтер</span>
+              <div className="bg-white shadow-lg rounded-sm p-3 md:p-6 hover:shadow-xl hover:bg-blue-50 transition-all cursor-pointer min-h-[140px] md:min-h-[224px]">
+                <div className="flex items-start gap-2 md:gap-4 mb-2 md:mb-4">
+                  <Trophy className="h-6 w-6 md:h-12 md:w-12 text-blue-500 flex-shrink-0" />
+                  <span className="text-gray-800 font-semibold text-lg md:text-2xl lg:text-3xl">Рейтингтер</span>
                 </div>
-                <p className="text-gray-600 text-sm md:text-base leading-relaxed">
+                <p className="text-gray-600 text-xs md:text-base leading-relaxed">
                   Барлық қатысушылардың рейтингін көріп, студенттер арасындағы өз орныңызды біліңіз.
                 </p>
               </div>
             </Link>
             <Link href="/public-tests">
-              <div className="bg-white shadow-lg rounded-lg p-4 md:p-6 hover:shadow-xl hover:bg-blue-50 transition-all cursor-pointer min-h-[200px] md:min-h-[224px]">
-                <div className="flex items-start gap-3 md:gap-4 mb-3 md:mb-4">
-                  <BookOpen className="h-8 w-8 md:h-12 md:w-12 text-blue-500 flex-shrink-0" />
-                  <span className="text-gray-800 font-semibold text-xl md:text-2xl lg:text-3xl">Тесттер</span>
+              <div className="bg-white shadow-lg rounded-sm p-3 md:p-6 hover:shadow-xl hover:bg-blue-50 transition-all cursor-pointer min-h-[140px] md:min-h-[224px]">
+                <div className="flex items-start gap-2 md:gap-4 mb-2 md:mb-4">
+                  <BookOpen className="h-6 w-6 md:h-12 md:w-12 text-blue-500 flex-shrink-0" />
+                  <span className="text-gray-800 font-semibold text-lg md:text-2xl lg:text-3xl">Тесттер</span>
                 </div>
-                <p className="text-gray-600 text-sm md:text-base leading-relaxed">
+                <p className="text-gray-600 text-xs md:text-base leading-relaxed">
                   Әртүрлі пәндер бойынша тесттерден өтіп, толық нәтижелер мен талдауды алыңыз.
                 </p>
               </div>
             </Link>
             <Link href="/about">
-              <div className="bg-white shadow-lg rounded-lg p-4 md:p-6 hover:shadow-xl hover:bg-blue-50 transition-all cursor-pointer min-h-[200px] md:min-h-[224px]">
-                <div className="flex items-start gap-3 md:gap-4 mb-3 md:mb-4">
-                  <Users className="h-8 w-8 md:h-12 md:w-12 text-blue-500 flex-shrink-0" />
-                  <span className="text-gray-800 font-semibold text-xl md:text-2xl lg:text-3xl">Біз туралы</span>
+              <div className="bg-white shadow-lg rounded-sm p-3 md:p-6 hover:shadow-xl hover:bg-blue-50 transition-all cursor-pointer min-h-[140px] md:min-h-[224px]">
+                <div className="flex items-start gap-2 md:gap-4 mb-2 md:mb-4">
+                  <Users className="h-6 w-6 md:h-12 md:w-12 text-blue-500 flex-shrink-0" />
+                  <span className="text-gray-800 font-semibold text-lg md:text-2xl lg:text-3xl">Біз туралы</span>
                 </div>
-                <p className="text-gray-600 text-sm md:text-base leading-relaxed">
+                <p className="text-gray-600 text-xs md:text-base leading-relaxed">
                   Онлайн тестілеу және студенттерді білімдендіру платформамыз туралы көбірек біліңіз.
                 </p>
               </div>
@@ -168,10 +168,10 @@ export default function PublicHomePage() {
             <div className="bg-blue-500 text-white p-2 rounded-lg">
               <BookOpen className="h-5 w-5" />
             </div>
-            <span className="text-lg font-semibold">ProjectEnt</span>
+            <span className="text-lg font-semibold">Qadam</span>
           </div>
           <p className="text-sm text-gray-400">
-            © 2025 ProjectEnt. Система подготовки к ЕНТ.
+            © 2025 Qadam. Система подготовки к ЕНТ.
           </p>
         </div>
       </footer>

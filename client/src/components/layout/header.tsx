@@ -20,7 +20,7 @@ export default function Header() {
   const [location, setLocation] = useLocation();
 
   const navigation = [
-    { href: "/", label: "Басты бет", icon: "fas fa-home" },
+    { href: user ? "/dashboard" : "/", label: "Басты бет", icon: "fas fa-home" },
     { href: "/profile", label: "Менің профилім", icon: "fas fa-user" },
     { href: "/notifications", label: "Хабарландырулар", icon: "fas fa-bell" },
     { href: "/analytics", label: "Аналитика", icon: "fas fa-chart-line" },
@@ -29,7 +29,11 @@ export default function Header() {
   ];
 
   const handleLogout = () => {
-    logoutMutation.mutate();
+    logoutMutation.mutate(undefined, {
+      onSuccess: () => {
+        setLocation("/");
+      }
+    });
   };
 
   const isActive = (path: string) => {
@@ -49,7 +53,7 @@ export default function Header() {
           <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
             <i className="fas fa-graduation-cap text-primary-foreground"></i>
           </div>
-          <span className="text-xl font-bold text-foreground">ProjectEnt</span>
+          <span className="text-xl font-bold text-foreground">Qadam</span>
         </div>
         
         <nav className="space-y-2">
@@ -93,13 +97,13 @@ export default function Header() {
             <Button
               variant="ghost"
               className="flex items-center space-x-2 hover:bg-transparent p-0"
-              onClick={() => setLocation("/")}
+              onClick={() => setLocation(user ? "/dashboard" : "/")}
               data-testid="brand-logo"
             >
               <div className="h-8 w-8 rounded-lg bg-white/20 flex items-center justify-center">
                 <i className="fas fa-graduation-cap text-white"></i>
               </div>
-              <span className="text-xl font-bold text-white">ProjectEnt</span>
+              <span className="text-xl font-bold text-white">Qadam</span>
             </Button>
           </div>
           

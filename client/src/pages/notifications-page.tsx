@@ -35,9 +35,10 @@ export default function NotificationsPage() {
   });
 
   // Query for unread count
+  // На странице уведомлений обновляем каждые 2 минуты (когда пользователь активно смотрит)
   const { data: unreadCountRaw = 0 } = useQuery<number>({
     queryKey: ["/api/notifications/unread-count"],
-    refetchInterval: 30000,
+    refetchInterval: 120000, // 2 минуты вместо 30 секунд
   });
   const unreadCount = Number(unreadCountRaw || 0);
 
@@ -202,11 +203,21 @@ export default function NotificationsPage() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Уведомления</h1>
-          <p className="text-muted-foreground mt-1">
-            Управляйте своими уведомлениями и напоминаниями
-          </p>
+        <div className="flex items-center space-x-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setLocation("/dashboard")}
+            data-testid="button-back"
+          >
+            <i className="fas fa-arrow-left"></i>
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">Уведомления</h1>
+            <p className="text-muted-foreground mt-1">
+              Управляйте своими уведомлениями и напоминаниями
+            </p>
+          </div>
         </div>
         <div className="flex items-center space-x-2">
           {unreadCount > 0 && (

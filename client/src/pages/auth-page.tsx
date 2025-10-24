@@ -111,42 +111,12 @@ export default function AuthPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Hero Section */}
-        <div className="flex flex-col justify-center space-y-6 text-center lg:text-left">
-          <div className="flex items-center justify-center lg:justify-start space-x-2">
+        <div className="flex flex-col justify-center space-y-6 text-left">
+          <div className="flex items-center space-x-2">
             <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
               <i className="fas fa-graduation-cap text-primary-foreground"></i>
             </div>
-            <span className="text-2xl font-bold text-foreground">ProjectEnt</span>
-          </div>
-          
-          <div className="space-y-4">
-            <h1 className="text-4xl font-bold text-foreground">
-              Система тестирования ЕНТ
-            </h1>
-            <p className="text-xl text-muted-foreground">
-              Современная платформа для подготовки к Единому Национальному Тестированию
-            </p>
-          </div>
-          
-          <div className="space-y-4">
-            <div className="flex items-center space-x-3">
-              <div className="h-6 w-6 rounded-full bg-accent flex items-center justify-center">
-                <i className="fas fa-check text-accent-foreground text-xs"></i>
-              </div>
-              <span className="text-muted-foreground">Интерактивные тесты по всем предметам</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="h-6 w-6 rounded-full bg-accent flex items-center justify-center">
-                <i className="fas fa-check text-accent-foreground text-xs"></i>
-              </div>
-              <span className="text-muted-foreground">Детальная статистика и прогресс</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="h-6 w-6 rounded-full bg-accent flex items-center justify-center">
-                <i className="fas fa-check text-accent-foreground text-xs"></i>
-              </div>
-              <span className="text-muted-foreground">Рейтинговая система</span>
-            </div>
+            <span className="text-2xl font-bold text-foreground">Qadam</span>
           </div>
         </div>
 

@@ -31,8 +31,13 @@ export default function BlockVariantsPage() {
 
   // Запрос моего последнего результата  
   const { data: myLastResult } = useQuery<{score: number}>({
-    queryKey: ["/api/profile/last-result"],
+    queryKey: ["/api/profile/latest-result"],
     enabled: !!blockId,
+  });
+
+  // Запрос даты ЕНТ из настроек
+  const { data: entDateSetting } = useQuery<{key: string, value: string}>({
+    queryKey: ["/api/settings/ent_exam_date"],
   });
 
   // Состояние для обратного отсчета
@@ -45,8 +50,14 @@ export default function BlockVariantsPage() {
 
   // Обновление обратного отсчета каждую секунду
   useEffect(() => {
+    // Не запускаем таймер пока не загрузится дата
+    if (!entDateSetting?.value) {
+      return;
+    }
+
     const updateTimer = () => {
-      const entDate = new Date('2025-01-16T00:00:00').getTime();
+      const entDateString = entDateSetting?.value || '2025-01-16T00:00:00.000Z';
+      const entDate = new Date(entDateString).getTime();
       const now = new Date().getTime();
       const difference = entDate - now;
 
@@ -57,6 +68,9 @@ export default function BlockVariantsPage() {
           minutes: Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60)),
           seconds: Math.floor((difference % (1000 * 60)) / 1000)
         });
+      } else {
+        // Если время прошло, показываем нули
+        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
       }
     };
 
@@ -64,7 +78,7 @@ export default function BlockVariantsPage() {
     const timer = setInterval(updateTimer, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [entDateSetting]);
 
   if (!match || !blockId) {
     setLocation("/");
@@ -143,15 +157,15 @@ export default function BlockVariantsPage() {
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* Variants List - Left Half */}
-          <div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          {/* Variants List - Left Panel (2 из 3 колонок = 66.67%) */}
+          <div className="lg:col-span-2">
             {/* Block Title */}
             <div className="mb-6">
-              <h1 className="text-3xl font-bold text-foreground">{block?.name?.replace('ЕНТ ', '')}</h1>
+              <h1 className="text-3xl font-bold text-foreground">{block?.name}</h1>
             </div>
             
-            <div className="space-y-4 h-[480px] overflow-y-auto scrollbar-hide">
+            <div className="space-y-[15px] h-[480px] overflow-y-auto scrollbar-hide">
               {variants.map((variant, index) => (
                 <Card 
                   key={variant.id} 
@@ -159,7 +173,7 @@ export default function BlockVariantsPage() {
                   onClick={() => setLocation(`/test/${variant.id}`)}
                   data-testid={`card-variant-${variant.id}`}
                 >
-                  <CardContent className="py-4 px-6">
+                  <CardContent className="py-[15px] px-6">
                     <div className="flex items-center justify-between">
                       <h3 className="text-2xl font-bold text-foreground">
                         Нұсқа {1000 + index + 1}
@@ -175,14 +189,9 @@ export default function BlockVariantsPage() {
             </div>
           </div>
           
-          {/* Right Panel - Information Cards */}
-          <div className="h-full">
-            {/* Spacer to align with title */}
-            <div className="mb-6">
-              <div className="h-[3rem]"></div> {/* Height matches h1 text-3xl */}
-            </div>
-            
-            <div className="h-[480px] flex flex-col justify-between">
+          {/* Right Panel - Information Cards (1 из 3 колонок = 33.33%) */}
+          <div className="lg:col-span-1 h-[540px]">
+            <div className="h-full flex flex-col justify-between">
             {/* 1. Обратный отсчет до ЕНТ */}
             <Card className="flex-1 mb-3">
               <CardContent className="p-4 h-full flex flex-col justify-center">
@@ -191,7 +200,7 @@ export default function BlockVariantsPage() {
                   <h3 className="text-sm font-semibold text-black">ҰБТ-ға дейін</h3>
                 </div>
                 <div className="text-black">
-                  <div className="grid grid-cols-4 gap-1 text-center">
+                  <div className="grid grid-cols-4 gap-0.5 text-center">
                     <div>
                       <div className="text-lg font-bold">{timeLeft.days}</div>
                       <div className="text-xs">күн</div>
@@ -220,7 +229,9 @@ export default function BlockVariantsPage() {
                   <i className="fas fa-trophy text-black"></i>
                   <h3 className="text-sm font-semibold text-black">Бүгінгі ең жақсы нәтиже</h3>
                 </div>
-                <p className="text-xl font-bold text-black">{bestTodayResult?.score || '—'} ұпай</p>
+                <p className="text-xl font-bold text-black">
+                  {bestTodayResult?.score !== undefined ? bestTodayResult.score : '—'} ұпай
+                </p>
                 <p className="text-xs text-black">Барлық пайдаланушылар арасында</p>
               </CardContent>
             </Card>
@@ -232,7 +243,9 @@ export default function BlockVariantsPage() {
                   <i className="fas fa-user-chart text-black"></i>
                   <h3 className="text-sm font-semibold text-black">Менің соңғы нәтижем</h3>
                 </div>
-                <p className="text-xl font-bold text-black">{myLastResult?.score || '—'} ұпай</p>
+                <p className="text-xl font-bold text-black">
+                  {myLastResult?.score !== undefined ? myLastResult.score : '—'} ұпай
+                </p>
                 <p className="text-xs text-black">Соңғы тапсыру</p>
               </CardContent>
             </Card>

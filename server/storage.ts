@@ -6,9 +6,11 @@ import { type User, type InsertUser, type Block, type InsertBlock, type Variant,
          type AnalyticsOverview, type SubjectAggregate, type HistoryPoint, type CorrectnessBreakdown, type ComparisonStats,
          type ExportJob, type InsertExportJob, type ExportType,
          type Quote, type InsertQuote,
+         type SubscriptionPlan, type InsertSubscriptionPlan, type UserSubscription, type InsertUserSubscription,
+         type Payment, type InsertPayment,
          users, blocks, variants, subjects, questions, answers, testResults,
          subjectProgress as subjectProgressTable, notifications, notificationSettings,
-         reminders, exportJobs, systemSettings, quotes } from "@shared/schema";
+         reminders, exportJobs, systemSettings, quotes, subscriptionPlans, userSubscriptions, payments } from "@shared/schema";
 import { randomUUID } from "crypto";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -142,6 +144,21 @@ export interface IStorage {
   updateQuote(id: string, quote: Partial<InsertQuote>): Promise<Quote | undefined>;
   deleteQuote(id: string): Promise<void>;
   reorderQuotes(month: number, ids: string[]): Promise<void>;
+  
+  // Payment System
+  getSubscriptionPlans(): Promise<SubscriptionPlan[]>;
+  getSubscriptionPlan(id: string): Promise<SubscriptionPlan | undefined>;
+  createSubscriptionPlan(plan: InsertSubscriptionPlan): Promise<SubscriptionPlan>;
+  updateSubscriptionPlan(id: string, plan: Partial<InsertSubscriptionPlan>): Promise<SubscriptionPlan | undefined>;
+  getCurrentUserSubscription(userId: string): Promise<UserSubscription | undefined>;
+  createOrUpdateUserSubscription(subscription: InsertUserSubscription): Promise<UserSubscription>;
+  createPayment(payment: InsertPayment): Promise<Payment>;
+  getPayment(id: string): Promise<Payment | undefined>;
+  updatePaymentStatus(id: string, status: string): Promise<void>;
+  getAllPayments(): Promise<Payment[]>;
+  getAllUserSubscriptions(): Promise<UserSubscription[]>;
+  hasBlockAccess(userId: string, blockId: string): Promise<boolean>;
+  hasSingleTestAccess(userId: string): Promise<boolean>;
   
   sessionStore: session.Store;
 }
@@ -1423,6 +1440,117 @@ export class DatabaseStorage implements IStorage {
         .set({ order: i })
         .where(and(eq(quotes.id, ids[i]), eq(quotes.month, month)));
     }
+  }
+
+  // Payment System Methods
+  async getSubscriptionPlans(): Promise<SubscriptionPlan[]> {
+    return await db.select().from(subscriptionPlans)
+      .where(eq(subscriptionPlans.isActive, true))
+      .orderBy(asc(subscriptionPlans.sortOrder));
+  }
+
+  async getSubscriptionPlan(id: string): Promise<SubscriptionPlan | undefined> {
+    const [plan] = await db.select().from(subscriptionPlans)
+      .where(eq(subscriptionPlans.id, id));
+    return plan;
+  }
+
+  async createSubscriptionPlan(plan: InsertSubscriptionPlan): Promise<SubscriptionPlan> {
+    const [newPlan] = await db.insert(subscriptionPlans).values(plan).returning();
+    return newPlan;
+  }
+
+  async updateSubscriptionPlan(id: string, plan: Partial<InsertSubscriptionPlan>): Promise<SubscriptionPlan | undefined> {
+    const [updated] = await db.update(subscriptionPlans)
+      .set({ ...plan, updatedAt: new Date() })
+      .where(eq(subscriptionPlans.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getCurrentUserSubscription(userId: string): Promise<UserSubscription | undefined> {
+    const [subscription] = await db.select().from(userSubscriptions)
+      .where(and(
+        eq(userSubscriptions.userId, userId),
+        eq(userSubscriptions.status, "ACTIVE")
+      ))
+      .orderBy(desc(userSubscriptions.createdAt));
+    return subscription;
+  }
+
+  async createOrUpdateUserSubscription(subscription: InsertUserSubscription): Promise<UserSubscription> {
+    // Сначала деактивируем все существующие подписки пользователя
+    await db.update(userSubscriptions)
+      .set({ status: "CANCELLED", updatedAt: new Date() })
+      .where(and(
+        eq(userSubscriptions.userId, subscription.userId),
+        eq(userSubscriptions.status, "ACTIVE")
+      ));
+
+    // Создаем новую подписку
+    const [newSubscription] = await db.insert(userSubscriptions)
+      .values(subscription)
+      .returning();
+    return newSubscription;
+  }
+
+  async createPayment(payment: InsertPayment): Promise<Payment> {
+    const [newPayment] = await db.insert(payments).values(payment).returning();
+    return newPayment;
+  }
+
+  async getPayment(id: string): Promise<Payment | undefined> {
+    const [payment] = await db.select().from(payments)
+      .where(eq(payments.id, id));
+    return payment;
+  }
+
+  async updatePaymentStatus(id: string, status: string): Promise<void> {
+    const updateData: any = { status };
+    if (status === "COMPLETED") {
+      updateData.completedAt = new Date();
+    }
+    
+    await db.update(payments)
+      .set(updateData)
+      .where(eq(payments.id, id));
+  }
+
+  async getAllPayments(): Promise<Payment[]> {
+    return await db.select().from(payments)
+      .orderBy(desc(payments.createdAt));
+  }
+
+  async getAllUserSubscriptions(): Promise<UserSubscription[]> {
+    return await db.select().from(userSubscriptions)
+      .orderBy(desc(userSubscriptions.createdAt));
+  }
+
+  // Check if user has access to a specific block
+  async hasBlockAccess(userId: string, blockId: string): Promise<boolean> {
+    const now = new Date();
+    const [subscription] = await db.select().from(userSubscriptions)
+      .where(and(
+        eq(userSubscriptions.userId, userId),
+        eq(userSubscriptions.blockId, blockId),
+        eq(userSubscriptions.status, "ACTIVE"),
+        sql`${userSubscriptions.endDate} > ${now}`
+      ));
+    return !!subscription;
+  }
+
+  // Check if user has single test credits
+  async hasSingleTestAccess(userId: string): Promise<boolean> {
+    const now = new Date();
+    const [subscription] = await db.select().from(userSubscriptions)
+      .innerJoin(subscriptionPlans, eq(userSubscriptions.planId, subscriptionPlans.id))
+      .where(and(
+        eq(userSubscriptions.userId, userId),
+        eq(userSubscriptions.status, "ACTIVE"),
+        eq(subscriptionPlans.planType, "single_test"),
+        sql`${userSubscriptions.endDate} > ${now}`
+      ));
+    return !!subscription;
   }
 
   // REMOVED: Old MemStorage VideoRecording methods - now using DatabaseStorage

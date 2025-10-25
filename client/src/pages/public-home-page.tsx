@@ -1,4 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
+import { useLocation } from "wouter";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,11 +15,21 @@ interface FreeVariant extends Variant {
 }
 
 export default function PublicHomePage() {
+  const { user, isLoading: authLoading } = useAuth();
+  const [, setLocation] = useLocation();
+  
+  // Redirect to dashboard if user is authenticated
+  useEffect(() => {
+    if (!authLoading && user) {
+      setLocation("/dashboard");
+    }
+  }, [user, authLoading, setLocation]);
+
   const { data: freeVariants, isLoading } = useQuery<FreeVariant[]>({
     queryKey: ['/api/public/free-variants'],
   });
 
-  if (isLoading) {
+  if (isLoading || authLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
         <div className="container mx-auto px-4 py-8">

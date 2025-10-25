@@ -369,3 +369,95 @@ export const insertExportJobSchema = createInsertSchema(exportJobs).omit({
 export type ExportJob = typeof exportJobs.$inferSelect;
 export type InsertExportJob = z.infer<typeof insertExportJobSchema>;
 export type ExportOptions = z.infer<typeof exportOptionsSchema>;
+
+// Payment system schemas
+export const subscriptionStatusSchema = z.enum([
+  "ACTIVE",
+  "CANCELLED", 
+  "EXPIRED",
+  "PENDING"
+]);
+
+export const paymentStatusSchema = z.enum([
+  "PENDING",
+  "COMPLETED",
+  "FAILED",
+  "CANCELLED",
+  "REFUNDED"
+]);
+
+export type SubscriptionStatus = z.infer<typeof subscriptionStatusSchema>;
+export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
+
+// Subscription plans table
+export const subscriptionPlans = pgTable("subscription_plans", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  price: integer("price").notNull(), // цена в копейках/центах
+  currency: text("currency").notNull().default("RUB"),
+  durationDays: integer("duration_days").notNull(), // продолжительность в днях
+  features: jsonb("features").notNull().default('[]'), // список возможностей
+  blockId: varchar("block_id").references(() => blocks.id), // для блок-специфичных планов
+  planType: text("plan_type").notNull().default("single_test"), // "single_test" или "block_access"
+  isActive: boolean("is_active").default(true),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// User subscriptions table  
+export const userSubscriptions = pgTable("user_subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  planId: varchar("plan_id").notNull().references(() => subscriptionPlans.id),
+  blockId: varchar("block_id").references(() => blocks.id), // какой блок доступен
+  status: text("status").notNull().default("PENDING"),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  autoRenew: boolean("auto_renew").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Payments table
+export const payments = pgTable("payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  subscriptionId: varchar("subscription_id").references(() => userSubscriptions.id),
+  planId: varchar("plan_id").notNull().references(() => subscriptionPlans.id),
+  amount: integer("amount").notNull(), // сумма в копейках/центах
+  currency: text("currency").notNull().default("RUB"),
+  status: text("status").notNull().default("PENDING"),
+  paymentMethod: text("payment_method"), // "card", "paypal", "yookassa" и т.д.
+  externalPaymentId: text("external_payment_id"), // ID платежа в платежной системе
+  paymentData: jsonb("payment_data"), // дополнительные данные от платежной системы
+  createdAt: timestamp("created_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
+// Insert schemas for payments
+export const insertSubscriptionPlanSchema = createInsertSchema(subscriptionPlans).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertUserSubscriptionSchema = createInsertSchema(userSubscriptions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPaymentSchema = createInsertSchema(payments).omit({
+  id: true,
+  createdAt: true,
+  completedAt: true,
+});
+
+export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
+export type UserSubscription = typeof userSubscriptions.$inferSelect;
+export type Payment = typeof payments.$inferSelect;
+export type InsertSubscriptionPlan = z.infer<typeof insertSubscriptionPlanSchema>;
+export type InsertUserSubscription = z.infer<typeof insertUserSubscriptionSchema>;
+export type InsertPayment = z.infer<typeof insertPaymentSchema>;

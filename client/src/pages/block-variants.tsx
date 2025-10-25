@@ -123,7 +123,7 @@ export default function BlockVariantsPage() {
           <main className="container mx-auto px-4 lg:px-6 py-8">
           <div className="text-center">
             <h1 className="text-2xl font-bold text-foreground mb-4">Блок не найден</h1>
-            <Button onClick={() => setLocation("/")} data-testid="button-back-home">
+            <Button onClick={() => setLocation("/dashboard")} data-testid="button-back-home">
               Вернуться на главную
             </Button>
           </div>
@@ -147,7 +147,7 @@ export default function BlockVariantsPage() {
         <div className="mb-4">
           <Button 
             variant="ghost" 
-            onClick={() => setLocation("/")}
+            onClick={() => setLocation("/dashboard")}
             className="mb-4 text-base px-4 py-2"
             data-testid="button-back"
           >

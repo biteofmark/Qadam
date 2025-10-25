@@ -1677,6 +1677,188 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // =================== PAYMENT SYSTEM ROUTES ===================
+  
+  // Get all subscription plans
+  app.get("/api/subscription/plans", async (req, res) => {
+    try {
+      const plans = await storage.getSubscriptionPlans();
+      res.json(plans);
+    } catch (error) {
+      console.error('[API] Error fetching subscription plans:', error);
+      res.status(500).json({ message: "Ошибка загрузки тарифных планов" });
+    }
+  });
+
+  // Get current user subscription
+  app.get("/api/subscription/current", requireAuth, async (req, res) => {
+    try {
+      const subscription = await storage.getCurrentUserSubscription(req.user!.id);
+      if (!subscription) {
+        return res.status(404).json({ message: "Подписка не найдена" });
+      }
+      res.json(subscription);
+    } catch (error) {
+      console.error('[API] Error fetching current subscription:', error);
+      res.status(500).json({ message: "Ошибка загрузки подписки" });
+    }
+  });
+
+  // Create payment for subscription
+  app.post("/api/payments/create", requireAuth, async (req, res) => {
+    try {
+      const { planId } = req.body;
+      if (!planId) {
+        return res.status(400).json({ message: "Требуется planId" });
+      }
+
+      const plan = await storage.getSubscriptionPlan(planId);
+      if (!plan) {
+        return res.status(404).json({ message: "Тарифный план не найден" });
+      }
+
+      // Создаем запись платежа
+      const payment = await storage.createPayment({
+        userId: req.user!.id,
+        planId: planId,
+        amount: plan.price,
+        currency: plan.currency,
+        status: "PENDING",
+        paymentMethod: "card", // По умолчанию карта
+      });
+
+      // TODO: Интеграция с платежной системой (Stripe, Yookassa и т.д.)
+      // Пока возвращаем mock URL для тестирования
+      const paymentUrl = `/payment/${payment.id}?mock=true`;
+
+      res.json({
+        paymentId: payment.id,
+        paymentUrl: paymentUrl,
+        amount: plan.price,
+        currency: plan.currency,
+      });
+    } catch (error) {
+      console.error('[API] Error creating payment:', error);
+      res.status(500).json({ message: "Ошибка создания платежа" });
+    }
+  });
+
+  // Mock payment completion (для тестирования)
+  app.post("/api/payments/:paymentId/complete", async (req, res) => {
+    try {
+      const { paymentId } = req.params;
+      const payment = await storage.getPayment(paymentId);
+      
+      if (!payment) {
+        return res.status(404).json({ message: "Платеж не найден" });
+      }
+
+      // Обновляем статус платежа
+      await storage.updatePaymentStatus(paymentId, "COMPLETED");
+
+      // Создаем или обновляем подписку пользователя
+      const plan = await storage.getSubscriptionPlan(payment.planId);
+      if (plan) {
+        const startDate = new Date();
+        const endDate = new Date();
+        endDate.setDate(startDate.getDate() + plan.durationDays);
+
+        await storage.createOrUpdateUserSubscription({
+          userId: payment.userId,
+          planId: payment.planId,
+          blockId: plan.blockId, // Сохраняем blockId из плана
+          status: "ACTIVE",
+          startDate: startDate,
+          endDate: endDate,
+          autoRenew: false,
+        });
+      }
+
+      res.json({ success: true, message: "Платеж успешно обработан" });
+    } catch (error) {
+      console.error('[API] Error completing payment:', error);
+      res.status(500).json({ message: "Ошибка обработки платежа" });
+    }
+  });
+
+  // Admin: Get all subscription plans
+  app.get("/api/admin/subscription/plans", requireAdmin, async (req, res) => {
+    try {
+      const plans = await storage.getSubscriptionPlans();
+      res.json(plans);
+    } catch (error) {
+      console.error('[API] Error fetching subscription plans:', error);
+      res.status(500).json({ message: "Ошибка загрузки тарифных планов" });
+    }
+  });
+
+  // Admin: Create subscription plan
+  app.post("/api/admin/subscription/plans", requireAdmin, async (req, res) => {
+    try {
+      const plan = await storage.createSubscriptionPlan(req.body);
+      res.status(201).json(plan);
+    } catch (error) {
+      console.error('[API] Error creating subscription plan:', error);
+      res.status(500).json({ message: "Ошибка создания тарифного плана" });
+    }
+  });
+
+  // Admin: Update subscription plan
+  app.put("/api/admin/subscription/plans/:id", requireAdmin, async (req, res) => {
+    try {
+      const plan = await storage.updateSubscriptionPlan(req.params.id, req.body);
+      res.json(plan);
+    } catch (error) {
+      console.error('[API] Error updating subscription plan:', error);
+      res.status(500).json({ message: "Ошибка обновления тарифного плана" });
+    }
+  });
+
+  // Admin: Get all payments
+  app.get("/api/admin/payments", requireAdmin, async (req, res) => {
+    try {
+      const payments = await storage.getAllPayments();
+      res.json(payments);
+    } catch (error) {
+      console.error('[API] Error fetching payments:', error);
+      res.status(500).json({ message: "Ошибка загрузки платежей" });
+    }
+  });
+
+  // Admin: Get all user subscriptions
+  app.get("/api/admin/subscriptions", requireAdmin, async (req, res) => {
+    try {
+      const subscriptions = await storage.getAllUserSubscriptions();
+      res.json(subscriptions);
+    } catch (error) {
+      console.error('[API] Error fetching subscriptions:', error);
+      res.status(500).json({ message: "Ошибка загрузки подписок" });
+    }
+  });
+
+  // Check access to block
+  app.get("/api/subscription/block-access/:blockId", requireAuth, async (req, res) => {
+    try {
+      const { blockId } = req.params;
+      const hasAccess = await storage.hasBlockAccess(req.user!.id, blockId);
+      res.json({ hasAccess });
+    } catch (error) {
+      console.error('[API] Error checking block access:', error);
+      res.status(500).json({ message: "Ошибка проверки доступа" });
+    }
+  });
+
+  // Check single test access
+  app.get("/api/subscription/single-test-access", requireAuth, async (req, res) => {
+    try {
+      const hasAccess = await storage.hasSingleTestAccess(req.user!.id);
+      res.json({ hasAccess });
+    } catch (error) {
+      console.error('[API] Error checking single test access:', error);
+      res.status(500).json({ message: "Ошибка проверки доступа к тесту" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

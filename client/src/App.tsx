@@ -20,6 +20,8 @@ import ResultsPage from "@/pages/results-page";
 import ProfilePage from "@/pages/profile-page";
 import NotificationsPage from "@/pages/notifications-page";
 import RankingPage from "@/pages/ranking-page";
+import SubscriptionPage from "@/pages/subscription-page";
+import PaymentPage from "@/pages/payment-page";
 import { ProtectedRoute } from "./lib/protected-route";
 
 // Lazy load heavy pages for better performance
@@ -50,6 +52,8 @@ const ResultsComponent = () => <ResultsPage />;
 const ProfileComponent = () => <ProfilePage />;
 const NotificationsComponent = () => <NotificationsPage />;
 const RankingComponent = () => <RankingPage />;
+const SubscriptionComponent = () => <SubscriptionPage />;
+const PaymentComponent = () => <PaymentPage />;
 
 function Router() {
   return (
@@ -61,6 +65,7 @@ function Router() {
       <Route path="/about" component={AboutPage} />
       <Route path="/auth" component={AuthPage} />
       <Route path="/public-test/:variantId" component={TestPageComponent} />
+      <Route path="/payment/:paymentId" component={PaymentComponent} />
       
       {/* Protected routes */}
       <ProtectedRoute path="/dashboard" component={DashboardComponent} />
@@ -80,6 +85,7 @@ function Router() {
         </Suspense>
       )} />
       <ProtectedRoute path="/ranking" component={RankingComponent} />
+      <ProtectedRoute path="/subscription" component={SubscriptionComponent} />
       
       <Route component={NotFound} />
     </Switch>

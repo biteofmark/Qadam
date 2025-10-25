@@ -25,7 +25,6 @@ export default function Header() {
     { href: "/notifications", label: "Хабарландырулар", icon: "fas fa-bell" },
     { href: "/analytics", label: "Аналитика", icon: "fas fa-chart-line" },
     { href: "/ranking", label: "Рейтинг", icon: "fas fa-trophy" },
-    { href: "/admin", label: "Әкімші панелі", icon: "fas fa-cog", adminOnly: true },
   ];
 
   const handleLogout = () => {
@@ -57,20 +56,43 @@ export default function Header() {
         </div>
         
         <nav className="space-y-2">
-          {navigation
-            .filter(item => !item.adminOnly || user?.username === "admin")
-            .map((item) => (
+          {navigation.map((item) => (
+            <Button
+              key={item.href}
+              variant={isActive(item.href) ? "default" : "ghost"}
+              className="w-full justify-start"
+              onClick={() => setLocation(item.href)}
+              data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+            >
+              <i className={`${item.icon} mr-2`}></i>
+              {item.label}
+            </Button>
+          ))}
+          
+          {/* Дополнительные пункты меню */}
+          <div className="border-t pt-2 mt-4">
+            <Button
+              variant={isActive("/subscription") ? "default" : "ghost"}
+              className="w-full justify-start"
+              onClick={() => setLocation("/subscription")}
+              data-testid="nav-subscription"
+            >
+              <i className="fas fa-credit-card mr-2"></i>
+              Жазылым
+            </Button>
+            
+            {user?.username === "admin" && (
               <Button
-                key={item.href}
-                variant={isActive(item.href) ? "default" : "ghost"}
+                variant={isActive("/admin") ? "default" : "ghost"}
                 className="w-full justify-start"
-                onClick={() => setLocation(item.href)}
-                data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                onClick={() => setLocation("/admin")}
+                data-testid="nav-admin"
               >
-                <i className={`${item.icon} mr-2`}></i>
-                {item.label}
+                <i className="fas fa-cog mr-2"></i>
+                Әкімші панелі
               </Button>
-            ))}
+            )}
+          </div>
         </nav>
         
         <div className="absolute bottom-6 left-6 right-6">
@@ -173,6 +195,11 @@ export default function Header() {
                   <DropdownMenuItem onClick={() => setLocation("/profile")} data-testid="dropdown-profile">
                     <i className="fas fa-user mr-2"></i>
                     Профиль
+                  </DropdownMenuItem>
+                  
+                  <DropdownMenuItem onClick={() => setLocation("/subscription")} data-testid="dropdown-subscription">
+                    <i className="fas fa-credit-card mr-2"></i>
+                    Жазылым
                   </DropdownMenuItem>
                   
                   <DropdownMenuItem onClick={() => setLocation("/ranking")} data-testid="dropdown-ranking">

@@ -398,7 +398,7 @@ async function cleanupExpiredFiles() {
   // Start the HTTP server with WebSocket support
   // Bind to 0.0.0.0 for Render deployment (required for external access)
   const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1';
-  httpServer.listen(port, host, () => {
+  httpServer.listen(port, host, async () => {
     log(`serving on port ${port}`);
     
     // CRITICAL #5: Operational Hardening - Log successful startup
@@ -408,6 +408,29 @@ async function cleanupExpiredFiles() {
       nodeVersion: process.version,
       platform: process.platform
     });
+    
+    // Auto-create admin user in production
+    if (process.env.NODE_ENV === 'production' && process.env.CREATE_ADMIN === 'true') {
+      try {
+        const { hashPassword } = await import('./auth.js');
+        const existingAdmin = await storage.getUserByUsername('admin');
+        
+        if (!existingAdmin) {
+          const hashedPassword = await hashPassword('admin123');
+          await storage.createUser({
+            username: 'admin',
+            email: 'admin@qadam.com',
+            password: hashedPassword
+          });
+          log('✅ Admin user created successfully!');
+          log('🔑 Username: admin, Password: admin123');
+        } else {
+          log('⚠️ Admin user already exists');
+        }
+      } catch (error) {
+        console.error('❌ Failed to create admin:', error);
+      }
+    }
     
     // Start the reminder scheduler (runs every 60 seconds)
     setInterval(processReminders, 60 * 1000);

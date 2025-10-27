@@ -1013,20 +1013,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Best result for today (all users)
   app.get("/api/rankings/today-best", async (req, res) => {
     try {
-      console.log('[API] Fetching today best result...');
       const bestResult = await storage.getTodayBestResult();
-      
       if (!bestResult) {
-        console.log('[API] No best result found, returning 0');
         return res.json({ score: 0 });
       }
-      
-      console.log('[API] Returning best result:', bestResult.score);
       res.json({ score: bestResult.score });
     } catch (error) {
       console.error('[API] Error fetching today best result:', error);
-      // Always return a valid response even on error
-      res.json({ score: 0 });
+      res.status(500).json({ message: "Ошибка получения лучшего результата" });
     }
   });
 

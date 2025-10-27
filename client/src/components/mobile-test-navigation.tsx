@@ -114,135 +114,79 @@ export default function MobileTestNavigation({
   };
 
   return (
-    <div className="md:hidden min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-      {/* Mobile Header - Modern Design */}
-      <div className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50 shadow-sm">
-        <div className="px-4 py-3">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center space-x-3">
-              <Sheet open={showNavigation} onOpenChange={setShowNavigation}>
-                <SheetTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="bg-white/50 dark:bg-slate-800/50 border-slate-300 dark:border-slate-600 shadow-sm hover:shadow-md transition-all duration-200"
-                    data-testid="button-mobile-navigation"
-                  >
-                    <i className="fas fa-th-large mr-2 text-slate-600 dark:text-slate-300"></i>
-                    <span className="font-medium">{currentIndex + 1}/{questions.length}</span>
-                  </Button>
-                </SheetTrigger>
-              <SheetContent side="bottom" className="h-[80vh] bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-slate-800">
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                      Навигация по вопросам
-                    </h3>
-                    <Badge variant="secondary" className="px-3 py-1 bg-slate-100 dark:bg-slate-700">
-                      {Object.keys(userAnswers).length} из {questions.length}
-                    </Badge>
+    <div className="md:hidden">
+      {/* Mobile Header */}
+      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur border-b border-border p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-3">
+            <Sheet open={showNavigation} onOpenChange={setShowNavigation}>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="sm" data-testid="button-mobile-navigation">
+                  <i className="fas fa-th-large mr-2"></i>
+                  {currentIndex + 1}/{questions.length}
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="bottom" className="h-[80vh]">
+                <div className="p-4">
+                  <h3 className="text-lg font-semibold mb-4">Навигация по вопросам</h3>
+                  <div className="grid grid-cols-5 gap-2 mb-6">
+                    {questions.map((question, index) => (
+                      <Button
+                        key={question.id}
+                        variant={currentIndex === index ? "default" : "outline"}
+                        size="sm"
+                        className={`h-12 ${
+                          userAnswers[question.id] 
+                            ? currentIndex === index 
+                              ? "bg-accent" 
+                              : "bg-accent/20 border-accent text-accent-foreground" 
+                            : ""
+                        }`}
+                        onClick={() => {
+                          onQuestionChange(index);
+                          setShowNavigation(false);
+                        }}
+                        data-testid={`mobile-question-${index + 1}`}
+                      >
+                        {index + 1}
+                      </Button>
+                    ))}
                   </div>
                   
-                  <div className="grid grid-cols-5 gap-3 mb-6">
-                    {questions.map((question, index) => {
-                      const isAnswered = userAnswers[question.id];
-                      const isCurrent = currentIndex === index;
-                      
-                      return (
-                        <Button
-                          key={question.id}
-                          variant="outline"
-                          size="sm"
-                          className={`h-14 relative transition-all duration-200 font-semibold text-base ${
-                            isCurrent 
-                              ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white border-blue-500 shadow-lg scale-105" 
-                              : isAnswered 
-                                ? "bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-500 text-green-700 dark:text-green-300 shadow-md hover:scale-105" 
-                                : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 hover:shadow-md hover:scale-105"
-                          }`}
-                          onClick={() => {
-                            onQuestionChange(index);
-                            setShowNavigation(false);
-                          }}
-                          data-testid={`mobile-question-${index + 1}`}
-                        >
-                          <span className="relative z-10">{index + 1}</span>
-                          {isAnswered && !isCurrent && (
-                            <div className="absolute top-1 right-1">
-                              <i className="fas fa-check text-xs text-green-600 dark:text-green-400"></i>
-                            </div>
-                          )}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                  
-                  <div className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 rounded-xl p-4 space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-600 dark:text-slate-400 font-medium">Отвечено:</span>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-bold text-lg text-slate-800 dark:text-slate-200">{answeredCount}</span>
-                        <span className="text-slate-500 dark:text-slate-400">из</span>
-                        <span className="font-bold text-lg text-slate-800 dark:text-slate-200">{questions.length}</span>
-                      </div>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Отвечено:</span>
+                      <span className="font-medium">{answeredCount}/{questions.length}</span>
                     </div>
-                    
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-slate-600 dark:text-slate-400 font-medium">Прогресс:</span>
-                        <span className="font-bold text-lg text-blue-600 dark:text-blue-400">{Math.round(progress)}%</span>
-                      </div>
-                      <Progress 
-                        value={progress} 
-                        className="h-3 bg-slate-200 dark:bg-slate-600 rounded-full"
-                      />
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Прогресс:</span>
+                      <span className="font-medium">{Math.round(progress)}%</span>
                     </div>
-                    
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-600">
-                      <div className="flex items-center space-x-2">
-                        <div className="h-3 w-3 rounded-full bg-gradient-to-r from-green-400 to-green-500 shadow-sm"></div>
-                        <span className="text-slate-600 dark:text-slate-400 text-sm">Отвечен</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="h-3 w-3 rounded-full border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700"></div>
-                        <span className="text-slate-600 dark:text-slate-400 text-sm">Не отвечен</span>
-                      </div>
+                    <div className="flex items-center space-x-2 mt-4">
+                      <div className="h-3 w-3 rounded bg-accent"></div>
+                      <span className="text-muted-foreground text-xs">Отвечен</span>
+                      <div className="h-3 w-3 rounded border border-border ml-4"></div>
+                      <span className="text-muted-foreground text-xs">Не отвечен</span>
                     </div>
                   </div>
                 </div>
               </SheetContent>
             </Sheet>
             
-            <Badge 
-              variant="secondary" 
-              className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 font-medium"
-            >
+            <Badge variant="secondary" className="text-xs">
               {currentQuestion?.subjectName}
             </Badge>
           </div>
           
-          <div className="flex items-center space-x-2">
-            {!isReviewMode && (
-              <div className="flex items-center space-x-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-full">
-                <i className="fas fa-clock text-orange-500 text-xs"></i>
-                <span className="text-sm font-mono font-semibold text-slate-700 dark:text-slate-300">
-                  {formatTime(timeLeft)}
-                </span>
-              </div>
-            )}
+          <div className="text-sm font-mono text-muted-foreground">
+            {formatTime(timeLeft)}
           </div>
         </div>
         
-        <div className="px-1">
-          <Progress 
-            value={progress} 
-            className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden"
-          />
-        </div>
-        </div>
+        <Progress value={progress} className="h-2" />
       </div>
 
-      {/* Question Content with Swipe - Modern Design */}
+      {/* Question Content with Swipe */}
       <div 
         ref={containerRef}
         className="p-4 pb-24 min-h-[calc(100vh-200px)] touch-pan-x"
@@ -251,22 +195,15 @@ export default function MobileTestNavigation({
         onTouchEnd={handleTouchEnd}
         data-testid="mobile-question-container"
       >
-        <Card className="border-0 shadow-xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+        <Card>
           <CardContent className="p-6">
             <div className="mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  Вопрос {currentIndex + 1}
-                </h2>
-                <Badge variant="outline" className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600">
-                  {currentIndex + 1} из {questions.length}
-                </Badge>
-              </div>
-              <div className="bg-gradient-to-r from-slate-100 to-slate-50 dark:from-slate-700 dark:to-slate-800 rounded-lg p-4 border-l-4 border-blue-500">
-                <p className="text-slate-800 dark:text-slate-200 leading-relaxed text-base">
-                  {currentQuestion?.text}
-                </p>
-              </div>
+              <h2 className="text-lg font-semibold mb-4">
+                Вопрос {currentIndex + 1}
+              </h2>
+              <p className="text-foreground leading-relaxed">
+                {currentQuestion?.text}
+              </p>
             </div>
             
             <div className="space-y-3">
@@ -274,12 +211,11 @@ export default function MobileTestNavigation({
                 // Определяем стиль для режима просмотра результатов
                 const getAnswerStyle = () => {
                   if (!isReviewMode) {
-                    const isSelected = userAnswers[currentQuestion.id] === answer.id;
                     return `
-                      flex items-start space-x-3 p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 hover:shadow-md
-                      ${isSelected 
-                        ? 'border-blue-500 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 shadow-lg' 
-                        : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750'
+                      flex items-start space-x-3 p-4 rounded-lg border cursor-pointer transition-all
+                      ${userAnswers[currentQuestion.id] === answer.id 
+                        ? 'border-primary bg-primary/5' 
+                        : 'border-border hover:bg-muted/50'
                       }
                     `;
                   }
@@ -289,27 +225,26 @@ export default function MobileTestNavigation({
                   
                   if (isCorrectAnswer && isUserAnswer) {
                     // Мой правильный ответ - синий
-                    return "flex items-start space-x-3 p-4 rounded-xl border-2 border-blue-500 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 text-blue-700 dark:text-blue-300 transition-all shadow-lg";
+                    return "flex items-start space-x-3 p-4 rounded-lg border-2 border-blue-500 bg-blue-50 text-blue-500 transition-all";
                   } else if (isCorrectAnswer && !isUserAnswer) {
                     // Правильный ответ (не мой) - зеленый
-                    return "flex items-start space-x-3 p-4 rounded-xl border-2 border-green-500 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 text-green-700 dark:text-green-300 transition-all shadow-lg";
+                    return "flex items-start space-x-3 p-4 rounded-lg border-2 border-green-500 bg-green-50 text-green-800 transition-all";
                   } else if (isUserAnswer && !isCorrectAnswer) {
                     // Мой неправильный ответ - красный
-                    return "flex items-start space-x-3 p-4 rounded-xl border-2 border-red-500 bg-gradient-to-r from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 text-red-700 dark:text-red-300 transition-all shadow-lg";
+                    return "flex items-start space-x-3 p-4 rounded-lg border-2 border-red-500 bg-red-50 text-red-800 transition-all";
                   } else {
                     // Обычный неправильный ответ
-                    return "flex items-start space-x-3 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 transition-all opacity-60";
+                    return "flex items-start space-x-3 p-4 rounded-lg border border-border bg-muted/20 transition-all opacity-60";
                   }
                 };
 
                 const getRadioStyle = () => {
                   if (!isReviewMode) {
-                    const isSelected = userAnswers[currentQuestion.id] === answer.id;
                     return `
-                      w-7 h-7 rounded-full border-2 flex items-center justify-center mt-0.5 flex-shrink-0 transition-all duration-200 shadow-sm
-                      ${isSelected 
-                        ? 'border-blue-500 bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md' 
-                        : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 hover:border-blue-400 dark:hover:border-blue-500'
+                      w-6 h-6 rounded-full border-2 flex items-center justify-center mt-1 flex-shrink-0
+                      ${userAnswers[currentQuestion.id] === answer.id 
+                        ? 'border-primary bg-primary' 
+                        : 'border-muted-foreground'
                       }
                     `;
                   }
@@ -319,16 +254,16 @@ export default function MobileTestNavigation({
                   
                   if (isCorrectAnswer && isUserAnswer) {
                     // Мой правильный ответ - синий
-                    return "w-7 h-7 rounded-full border-2 border-blue-500 bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mt-0.5 flex-shrink-0 text-white shadow-lg";
+                    return "w-6 h-6 rounded-full border-2 border-blue-500 bg-blue-500 flex items-center justify-center mt-1 flex-shrink-0";
                   } else if (isCorrectAnswer && !isUserAnswer) {
                     // Правильный ответ (не мой) - зеленый
-                    return "w-7 h-7 rounded-full border-2 border-green-500 bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center mt-0.5 flex-shrink-0 text-white shadow-lg";
+                    return "w-6 h-6 rounded-full border-2 border-green-600 bg-green-600 flex items-center justify-center mt-1 flex-shrink-0";
                   } else if (isUserAnswer && !isCorrectAnswer) {
                     // Мой неправильный ответ - красный
-                    return "w-7 h-7 rounded-full border-2 border-red-500 bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center mt-0.5 flex-shrink-0 text-white shadow-lg";
+                    return "w-6 h-6 rounded-full border-2 border-red-600 bg-red-600 flex items-center justify-center mt-1 flex-shrink-0";
                   } else {
                     // Обычный неправильный ответ
-                    return "w-7 h-7 rounded-full border-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 flex items-center justify-center mt-0.5 flex-shrink-0";
+                    return "w-6 h-6 rounded-full border-2 border-muted-foreground flex items-center justify-center mt-1 flex-shrink-0";
                   }
                 };
 
@@ -348,42 +283,26 @@ export default function MobileTestNavigation({
                     data-testid={`mobile-answer-${answer.id}`}
                   >
                     <div className={getRadioStyle()}>
-                      {isReviewMode ? (
-                        // Иконки для режима просмотра
-                        (answer as any).isCorrect ? (
-                          <i className="fas fa-check text-sm"></i>
-                        ) : userAnswers[currentQuestion.id] === answer.id ? (
-                          <i className="fas fa-times text-sm"></i>
-                        ) : null
-                      ) : (
-                        // Точка для обычного режима
-                        userAnswers[currentQuestion.id] === answer.id && (
-                          <div className="w-3 h-3 rounded-full bg-white shadow-sm"></div>
-                        )
+                      {((isReviewMode && (answer as any).isCorrect) || (!isReviewMode && userAnswers[currentQuestion.id] === answer.id)) && (
+                        <div className="w-2 h-2 rounded-full bg-white"></div>
                       )}
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-start space-x-3">
-                        <span className="font-bold text-lg text-slate-600 dark:text-slate-400 min-w-[20px] mt-0.5">
-                          {String.fromCharCode(65 + index)}.
-                        </span>
-                        <span className="text-slate-800 dark:text-slate-200 leading-relaxed font-medium flex-1">
-                          {answer.text}
-                        </span>
-                        {isReviewMode && (
-                          <div className="flex-shrink-0 mt-1">
-                            {(answer as any).isCorrect && userAnswers[currentQuestion.id] === answer.id && (
-                              <i className="fas fa-check-circle text-blue-500 text-lg"></i>
-                            )}
-                            {(answer as any).isCorrect && userAnswers[currentQuestion.id] !== answer.id && (
-                              <i className="fas fa-check-circle text-green-600 text-lg"></i>
-                            )}
-                            {userAnswers[currentQuestion.id] === answer.id && !(answer as any).isCorrect && (
-                              <i className="fas fa-times-circle text-red-600 text-lg"></i>
-                            )}
-                          </div>
+                    <div className="flex-1 flex items-center justify-between">
+                      <span className="font-medium mr-3">
+                        {String.fromCharCode(65 + index)}.
+                      </span>
+                      <span className="text-foreground">
+                        {answer.text}
+                        {isReviewMode && (answer as any).isCorrect && userAnswers[currentQuestion.id] === answer.id && (
+                          <span className="ml-2 text-blue-500">✓</span>
                         )}
-                      </div>
+                        {isReviewMode && (answer as any).isCorrect && userAnswers[currentQuestion.id] !== answer.id && (
+                          <span className="ml-2 text-green-600">✓</span>
+                        )}
+                        {isReviewMode && userAnswers[currentQuestion.id] === answer.id && !(answer as any).isCorrect && (
+                          <span className="ml-2 text-red-600">✗</span>
+                        )}
+                      </span>
                     </div>
                   </div>
                 );
@@ -399,54 +318,42 @@ export default function MobileTestNavigation({
         </div>
       </div>
 
-      {/* Bottom Navigation - Modern Design */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-t border-slate-200/50 dark:border-slate-700/50 shadow-2xl safe-area-padding-bottom">
-        <div className="p-4">
-          <div className="flex justify-between items-center">
+      {/* Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t border-border p-4 safe-area-padding-bottom">
+        <div className="flex justify-between items-center">
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => onQuestionChange(Math.max(0, currentIndex - 1))}
+            disabled={currentIndex === 0}
+            className="min-w-[100px] h-12"
+            data-testid="mobile-button-previous"
+          >
+            <i className="fas fa-chevron-left mr-2"></i>
+            Назад
+          </Button>
+          
+          {currentIndex === questions.length - 1 ? (
             <Button
-              variant="outline"
               size="lg"
-              onClick={() => onQuestionChange(Math.max(0, currentIndex - 1))}
-              disabled={currentIndex === 0}
-              className="min-w-[100px] h-12 border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-200 disabled:opacity-40"
-              data-testid="mobile-button-previous"
+              onClick={onSubmit}
+              disabled={isSubmitting}
+              className="min-w-[140px] h-12 bg-accent hover:bg-accent/90"
+              data-testid="mobile-button-submit"
             >
-              <i className="fas fa-chevron-left mr-2 text-slate-600 dark:text-slate-400"></i>
-              Назад
+              {isSubmitting ? "Завершение..." : "Завершить тест"}
             </Button>
-            
-            {currentIndex === questions.length - 1 ? (
-              <Button
-                size="lg"
-                onClick={onSubmit}
-                disabled={isSubmitting}
-                className="min-w-[140px] h-12 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-70"
-                data-testid="mobile-button-submit"
-              >
-                {isSubmitting ? (
-                  <>
-                    <i className="fas fa-spinner fa-spin mr-2"></i>
-                    Завершение...
-                  </>
-                ) : (
-                  <>
-                    <i className="fas fa-check mr-2"></i>
-                    Завершить тест
-                  </>
-                )}
-              </Button>
-            ) : (
-              <Button
-                size="lg"
-                onClick={() => onQuestionChange(Math.min(questions.length - 1, currentIndex + 1))}
-                className="min-w-[100px] h-12 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-                data-testid="mobile-button-next"
-              >
-                Далее
-                <i className="fas fa-chevron-right ml-2"></i>
-              </Button>
-            )}
-          </div>
+          ) : (
+            <Button
+              size="lg"
+              onClick={() => onQuestionChange(Math.min(questions.length - 1, currentIndex + 1))}
+              className="min-w-[100px] h-12"
+              data-testid="mobile-button-next"
+            >
+              Далее
+              <i className="fas fa-chevron-right ml-2"></i>
+            </Button>
+          )}
         </div>
       </div>
     </div>

@@ -15,7 +15,7 @@ import { randomUUID } from "crypto";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import { db } from "./db";
-import { eq, and, desc, sql, count, asc } from "drizzle-orm";
+import { eq, and, desc, sql, count, asc, gte, lte } from "drizzle-orm";
 
 const MemoryStore = createMemoryStore(session);
 
@@ -715,29 +715,53 @@ export class DatabaseStorage implements IStorage {
 
   async getTodayBestResult(): Promise<{ score: number } | undefined> {
     try {
-      // Get all results and filter by date in JavaScript to avoid timezone issues
-      const allResults = await db
-        .select({ score: testResults.score, completedAt: testResults.completedAt })
-        .from(testResults)
-        .orderBy(desc(testResults.score))
-        .limit(100); // Get top 100 to be safe
+      console.log('[Storage] Fetching today best result...');
       
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      // Get today's date in Kazakhstan timezone (UTC+6)
+      const now = new Date();
+      const kazakhstanOffset = 6 * 60; // UTC+6 in minutes
+      const localTime = new Date(now.getTime() + (kazakhstanOffset * 60 * 1000));
       
-      // Filter results from today
-      const todayResults = allResults.filter(result => {
-        if (!result.completedAt) return false;
-        const resultDate = new Date(result.completedAt);
-        return resultDate >= today;
+      // Start and end of today in Kazakhstan time
+      const todayStart = new Date(localTime);
+      todayStart.setHours(0, 0, 0, 0);
+      
+      const todayEnd = new Date(localTime);
+      todayEnd.setHours(23, 59, 59, 999);
+      
+      // Convert back to UTC for database query
+      const utcTodayStart = new Date(todayStart.getTime() - (kazakhstanOffset * 60 * 1000));
+      const utcTodayEnd = new Date(todayEnd.getTime() - (kazakhstanOffset * 60 * 1000));
+      
+      console.log('[Storage] Date range:', {
+        utcTodayStart: utcTodayStart.toISOString(),
+        utcTodayEnd: utcTodayEnd.toISOString(),
+        kazakhstanTime: localTime.toISOString()
       });
       
+      // Get today's results using direct SQL for better timezone handling
+      const todayResults = await db
+        .select({ score: testResults.score, completedAt: testResults.completedAt })
+        .from(testResults)
+        .where(
+          and(
+            gte(testResults.completedAt, utcTodayStart),
+            lte(testResults.completedAt, utcTodayEnd)
+          )
+        )
+        .orderBy(desc(testResults.score));
+      
+      console.log('[Storage] Found today results:', todayResults.length);
+      
       if (todayResults.length === 0) {
+        console.log('[Storage] No results found for today, returning score 0');
         return { score: 0 };
       }
       
-      // Return the best score
-      return { score: todayResults[0].score };
+      const bestScore = todayResults[0].score;
+      console.log('[Storage] Best score today:', bestScore);
+      
+      return { score: bestScore };
     } catch (error) {
       console.error('[Storage] Error fetching today best result:', error);
       return { score: 0 };

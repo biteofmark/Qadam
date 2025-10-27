@@ -701,6 +701,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { variantId, answers, timeSpent } = req.body;
       
+      console.log('[DEBUG] Test submission received:', { variantId, timeSpent, answersCount: Object.keys(answers || {}).length });
+      
       if (!variantId || !answers || timeSpent === undefined) {
         return res.status(400).json({ message: "Недостаточно данных" });
       }
@@ -710,21 +712,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let totalQuestions = 0;
       let correctAnswers = 0;
       
+      console.log('[DEBUG] Starting score calculation for variant:', variantId);
+      console.log('[DEBUG] Found subjects:', subjects.length);
+      console.log('[DEBUG] User answers:', Object.keys(answers).length, 'answers provided');
+      
       for (const subject of subjects) {
         const questions = await storage.getQuestionsBySubject(subject.id);
+        console.log(`[DEBUG] Subject ${subject.name}: ${questions.length} questions`);
+        
         for (const question of questions) {
           totalQuestions++;
           const questionAnswers = await storage.getAnswersByQuestion(question.id);
           const userAnswerId = answers[question.id];
           
+          console.log(`[DEBUG] Question ${question.id}: user selected ${userAnswerId}`);
+          
           if (userAnswerId) {
             const selectedAnswer = questionAnswers.find(a => a.id === userAnswerId);
+            console.log(`[DEBUG] Selected answer:`, selectedAnswer);
             if (selectedAnswer?.isCorrect) {
               correctAnswers++;
+              console.log(`[DEBUG] Correct! Total correct now: ${correctAnswers}`);
+            } else {
+              console.log(`[DEBUG] Wrong answer`);
             }
+          } else {
+            console.log(`[DEBUG] No answer provided for question ${question.id}`);
           }
         }
       }
+      
+      console.log(`[DEBUG] Final calculation: ${correctAnswers}/${totalQuestions} = ${correctAnswers/totalQuestions*100}%`);
       
       const percentage = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
       

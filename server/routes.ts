@@ -13,6 +13,9 @@ import { ObjectStorageService } from "./objectStorage";
 // Rate limiting middleware removed for video upload (proctoring removed)
 // CRITICAL #5: Operational Hardening - Import health checks and monitoring
 import { operationalHardening } from "./operational-hardening";
+import { db } from "./db";
+import { testResults } from "@shared/schema";
+import { desc } from "drizzle-orm";
 
 // Authentication middleware
 function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -1024,6 +1027,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('[API] Error fetching today best result:', error);
       // Always return a valid response even on error
       res.json({ score: 0 });
+    }
+  });
+
+  // Debug endpoint for today best result
+  app.get("/api/debug/today-best", async (req, res) => {
+    try {
+      console.log('[DEBUG] Starting today best result debug...');
+      
+      // Get all test results
+      const allResults = await db
+        .select({ 
+          id: testResults.id,
+          score: testResults.score, 
+          completedAt: testResults.completedAt,
+          userId: testResults.userId
+        })
+        .from(testResults)
+        .orderBy(desc(testResults.completedAt))
+        .limit(10);
+      
+      // Get today's date info
+      const now = new Date();
+      const kazakhstanOffset = 6 * 60;
+      const localTime = new Date(now.getTime() + (kazakhstanOffset * 60 * 1000));
+      
+      const todayStart = new Date(localTime);
+      todayStart.setHours(0, 0, 0, 0);
+      const todayEnd = new Date(localTime);
+      todayEnd.setHours(23, 59, 59, 999);
+      
+      const utcTodayStart = new Date(todayStart.getTime() - (kazakhstanOffset * 60 * 1000));
+      const utcTodayEnd = new Date(todayEnd.getTime() - (kazakhstanOffset * 60 * 1000));
+      
+      // Filter today's results
+      const todayResults = allResults.filter(result => {
+        if (!result.completedAt) return false;
+        const resultDate = new Date(result.completedAt);
+        return resultDate >= utcTodayStart && resultDate <= utcTodayEnd;
+      });
+      
+      const debugInfo = {
+        currentUTC: now.toISOString(),
+        kazakhstanTime: localTime.toISOString(),
+        todayRange: {
+          start: utcTodayStart.toISOString(),
+          end: utcTodayEnd.toISOString()
+        },
+        totalResults: allResults.length,
+        todayResults: todayResults.length,
+        recentResults: allResults.map(r => ({
+          id: r.id.substring(0, 8),
+          score: r.score,
+          completedAt: r.completedAt ? new Date(r.completedAt).toISOString() : null,
+          isToday: r.completedAt ? (new Date(r.completedAt) >= utcTodayStart && new Date(r.completedAt) <= utcTodayEnd) : false
+        })),
+        bestTodayScore: todayResults.length > 0 ? Math.max(...todayResults.map(r => r.score)) : 0
+      };
+      
+      console.log('[DEBUG] Debug info:', JSON.stringify(debugInfo, null, 2));
+      res.json(debugInfo);
+      
+    } catch (error) {
+      console.error('[DEBUG] Error in debug endpoint:', error);
+      res.status(500).json({ error: error.message });
     }
   });
 

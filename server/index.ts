@@ -14,11 +14,46 @@ import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import cors from 'cors';
 import { setupAuth } from "./auth";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
+import fs from 'fs';
 
 declare module 'cors';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Migration function
+async function runMigrations() {
+  try {
+    log('🔄 Running database migrations...');
+    const migrationsPath = path.join(process.cwd(), 'migrations');
+    
+    const migrationFiles = [
+      '20251021_add_order_fields.sql',
+      '20251021_add_system_settings.sql',
+      '20251022_add_quotes.sql'
+    ];
+    
+    for (const file of migrationFiles) {
+      try {
+        const migrationSQL = fs.readFileSync(path.join(migrationsPath, file), 'utf8');
+        await db.execute(sql.raw(migrationSQL));
+        log(`✅ Migration ${file} completed`);
+      } catch (error: any) {
+        if (error.message?.includes('already exists') || error.message?.includes('duplicate')) {
+          log(`ℹ️ Migration ${file} already applied, skipping...`);
+        } else {
+          throw error;
+        }
+      }
+    }
+    log('🎉 All migrations completed successfully!');
+  } catch (error: any) {
+    log(`❌ Migration failed: ${error.message}`);
+    throw error;
+  }
+}
 
 const app = express();
 app.use(express.json());
@@ -394,6 +429,9 @@ async function cleanupExpiredFiles() {
       log('WebSocket connection closed');
     });
   });
+  
+  // Run migrations before starting server
+  await runMigrations();
   
   // Start the HTTP server with WebSocket support
   // Bind to 0.0.0.0 for Render deployment (required for external access)

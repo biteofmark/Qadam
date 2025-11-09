@@ -93,7 +93,7 @@ export default function PublicHomePage() {
       {/* Hero Section - reduced height */}
       <section className="py-8 md:py-16 lg:py-20 min-h-[50vh] md:min-h-[60vh] relative w-full">
         {/* Background with glass effect */}
-        <div className="absolute inset-0 bg-cover bg-center bg-no-repeat" style={{backgroundImage: 'url("/1123.png")'}}></div>
+        <div className="absolute inset-0 bg-cover bg-center bg-no-repeat" style={{backgroundImage: 'url("/main.png")'}}></div>
         <div className="absolute inset-0 bg-black/20 backdrop-blur-[1px]"></div>
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-blue-700/30"></div>
         

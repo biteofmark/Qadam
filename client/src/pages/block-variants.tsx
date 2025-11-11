@@ -176,7 +176,7 @@ export default function BlockVariantsPage() {
                   <CardContent className="py-[15px] px-6">
                     <div className="flex items-center justify-between">
                       <h3 className="text-2xl font-bold text-foreground">
-                        Нұсқа {1000 + index + 1}
+                        {variant.name}
                       </h3>
                       
                       <div className="text-base font-medium text-muted-foreground">

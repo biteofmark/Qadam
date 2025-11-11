@@ -625,10 +625,7 @@ export default function TestPage() {
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <h1 className="text-xl md:text-2xl font-bold text-foreground line-clamp-2">
-                  {finalTestData.variant.block?.name || 'Тест'} - Нұсқа {(() => {
-                    const match = finalTestData.variant.name.match(/\d+/);
-                    return match ? `10${match[0].padStart(2, '0')}` : '1001';
-                  })()}
+                  {finalTestData.variant.block?.name || 'Тест'} - {finalTestData.variant.name}
                 </h1>
                 {isReviewMode && (
                   <Badge variant="outline" className="bg-blue-50 text-blue-500 border-blue-500">

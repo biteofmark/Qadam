@@ -29,7 +29,7 @@ export interface ActiveTest {
       }[];
     }[];
   }[];
-  userAnswers: Record<string, string>;
+  userAnswers: Record<string, string | string[]>;
   startedAt: number;
   lastSavedAt: number;
   timeSpent: number;
@@ -43,7 +43,7 @@ export interface OfflineTestResult {
   id: string;
   testId: string;
   variantId: string;
-  answers: Record<string, string>;
+  answers: Record<string, string | string[]>;
   timeSpent: number;
   completedAt: number;
   syncStatus: 'pending' | 'syncing' | 'synced' | 'failed';

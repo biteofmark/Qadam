@@ -15,7 +15,7 @@ interface TestQuestion {
 interface MobileTestNavigationProps {
   questions: TestQuestion[];
   currentIndex: number;
-  userAnswers: Record<string, string>;
+  userAnswers: Record<string, string | string[]>;
   onQuestionChange: (index: number) => void;
   onAnswerSelect: (questionId: string, answerId: string) => void;
   onSubmit: () => void;

@@ -612,32 +612,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get all questions for this variant to calculate score
       const subjects = await storage.getSubjectsByVariant(variantId);
       let totalQuestions = 0;
-      let correctAnswers = 0;
+      let totalPoints = 0;
+      let earnedPoints = 0;
       
       for (const subject of subjects) {
         const questions = await storage.getQuestionsBySubject(subject.id);
         for (const question of questions) {
           totalQuestions++;
           const questionAnswers = await storage.getAnswersByQuestion(question.id);
-          const userAnswerId = answers[question.id];
           
-          if (userAnswerId) {
-            const selectedAnswer = questionAnswers.find(a => a.id === userAnswerId);
-            if (selectedAnswer?.isCorrect) {
-              correctAnswers++;
+          // Determine question type and points based on answer count
+          const answerCount = questionAnswers.length;
+          const correctAnswers = questionAnswers.filter(a => a.isCorrect);
+          const questionPoints = answerCount === 8 ? 2 : 1; // 8 answers = 2 points, 5 answers = 1 point
+          totalPoints += questionPoints;
+          
+          // Get user's answer(s) - can be array for multiple choice or single ID
+          const userAnswer = answers[question.id];
+          
+          if (answerCount === 5) {
+            // Single choice: 1 correct answer
+            if (userAnswer && !Array.isArray(userAnswer)) {
+              const selectedAnswer = questionAnswers.find(a => a.id === userAnswer);
+              if (selectedAnswer?.isCorrect) {
+                earnedPoints += 1;
+              }
+            }
+          } else if (answerCount === 8) {
+            // Multiple choice: 3 correct answers, must select all 3 and no wrong ones
+            if (userAnswer && Array.isArray(userAnswer)) {
+              const selectedAnswers = questionAnswers.filter(a => userAnswer.includes(a.id));
+              const selectedCorrect = selectedAnswers.filter(a => a.isCorrect);
+              const selectedWrong = selectedAnswers.filter(a => !a.isCorrect);
+              
+              // Award 2 points only if all 3 correct are selected and no wrong ones
+              if (selectedCorrect.length === 3 && selectedWrong.length === 0) {
+                earnedPoints += 2;
+              }
             }
           }
         }
       }
       
-      const percentage = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+      const percentage = totalPoints > 0 ? (earnedPoints / totalPoints) * 100 : 0;
       
       // Return results without saving to database (guest session)
       const result = {
         variantId,
-        score: correctAnswers,
+        score: earnedPoints,
         totalQuestions,
-        percentage: Math.round(percentage), // Исправлено: убрано лишнее умножение
+        totalPoints,
+        percentage: Math.round(percentage),
         timeSpent,
         isGuestResult: true
       };
@@ -710,11 +735,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get all questions for this variant to calculate score
       const subjects = await storage.getSubjectsByVariant(variantId);
       let totalQuestions = 0;
-      let correctAnswers = 0;
+      let totalPoints = 0;
+      let earnedPoints = 0;
       
       console.log('[DEBUG] Starting score calculation for variant:', variantId);
       console.log('[DEBUG] Found subjects:', subjects.length);
-      console.log('[DEBUG] User answers:', Object.keys(answers).length, 'answers provided');
+      console.log('[DEBUG] User answers:', Object.keys(answers || {}).length, 'answers provided');
       
       for (const subject of subjects) {
         const questions = await storage.getQuestionsBySubject(subject.id);
@@ -723,33 +749,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
         for (const question of questions) {
           totalQuestions++;
           const questionAnswers = await storage.getAnswersByQuestion(question.id);
-          const userAnswerId = answers[question.id];
           
-          console.log(`[DEBUG] Question ${question.id}: user selected ${userAnswerId}`);
+          // Determine question type and points based on answer count
+          const answerCount = questionAnswers.length;
+          const correctAnswers = questionAnswers.filter(a => a.isCorrect);
+          const questionPoints = answerCount === 8 ? 2 : 1; // 8 answers = 2 points, 5 answers = 1 point
+          totalPoints += questionPoints;
           
-          if (userAnswerId) {
-            const selectedAnswer = questionAnswers.find(a => a.id === userAnswerId);
-            console.log(`[DEBUG] Selected answer:`, selectedAnswer);
-            if (selectedAnswer?.isCorrect) {
-              correctAnswers++;
-              console.log(`[DEBUG] Correct! Total correct now: ${correctAnswers}`);
+          console.log(`[DEBUG] Question ${question.id}: ${answerCount} answers, ${correctAnswers.length} correct, worth ${questionPoints} points`);
+          
+          // Get user's answer(s) - can be array for multiple choice or single ID
+          const userAnswer = answers[question.id];
+          console.log(`[DEBUG] User answer for question ${question.id}:`, userAnswer);
+          
+          if (answerCount === 5) {
+            // Single choice: 1 correct answer
+            if (userAnswer && !Array.isArray(userAnswer)) {
+              const selectedAnswer = questionAnswers.find(a => a.id === userAnswer);
+              console.log(`[DEBUG] Single choice - selected answer:`, selectedAnswer);
+              if (selectedAnswer?.isCorrect) {
+                earnedPoints += 1;
+                console.log(`[DEBUG] Correct! Earned 1 point. Total: ${earnedPoints}`);
+              } else {
+                console.log(`[DEBUG] Wrong answer, 0 points`);
+              }
             } else {
-              console.log(`[DEBUG] Wrong answer`);
+              console.log(`[DEBUG] No answer or invalid format for single choice`);
             }
-          } else {
-            console.log(`[DEBUG] No answer provided for question ${question.id}`);
+          } else if (answerCount === 8) {
+            // Multiple choice: 3 correct answers, must select all 3 and no wrong ones
+            if (userAnswer && Array.isArray(userAnswer)) {
+              const selectedAnswers = questionAnswers.filter(a => userAnswer.includes(a.id));
+              const selectedCorrect = selectedAnswers.filter(a => a.isCorrect);
+              const selectedWrong = selectedAnswers.filter(a => !a.isCorrect);
+              
+              console.log(`[DEBUG] Multiple choice - selected ${selectedAnswers.length} answers: ${selectedCorrect.length} correct, ${selectedWrong.length} wrong`);
+              
+              // Award 2 points only if all 3 correct are selected and no wrong ones
+              if (selectedCorrect.length === 3 && selectedWrong.length === 0) {
+                earnedPoints += 2;
+                console.log(`[DEBUG] Perfect! Earned 2 points. Total: ${earnedPoints}`);
+              } else {
+                console.log(`[DEBUG] Incomplete or has wrong answers, 0 points`);
+              }
+            } else {
+              console.log(`[DEBUG] No answer or invalid format for multiple choice`);
+            }
           }
         }
       }
       
-      console.log(`[DEBUG] Final calculation: ${correctAnswers}/${totalQuestions} = ${correctAnswers/totalQuestions*100}%`);
+      console.log(`[DEBUG] Final calculation: ${earnedPoints}/${totalPoints} points = ${earnedPoints/totalPoints*100}%`);
       
-      const percentage = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+      const percentage = totalPoints > 0 ? (earnedPoints / totalPoints) * 100 : 0;
       
       const validatedData = insertTestResultSchema.parse({
         userId: req.user?.id,
         variantId,
-        score: correctAnswers,
+        score: earnedPoints,
         totalQuestions,
         percentage,
         timeSpent,
@@ -800,12 +857,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId: req.user?.id!,
           type: "TEST_COMPLETED",
           title: "Тест завершен",
-          message: `Вы завершили тест ${variant.name}. Результат: ${correctAnswers}/${totalQuestions} (${Math.round(percentage)}%).${achievementMessage}`,
+          message: `Вы завершили тест ${variant.name}. Результат: ${earnedPoints}/${totalPoints} баллов (${Math.round(percentage)}%).${achievementMessage}`,
           metadata: {
             testResultId: result.id,
             variantId: variant.id,
-            score: correctAnswers,
+            score: earnedPoints,
             totalQuestions,
+            totalPoints,
             percentage: Math.round(percentage),
             timeSpent,
           },

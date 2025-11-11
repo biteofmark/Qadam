@@ -83,7 +83,7 @@ export default function TestPage() {
   // Упрощенная проверка режима просмотра
 
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [userAnswers, setUserAnswers] = useState<Record<string, string>>(
+  const [userAnswers, setUserAnswers] = useState<Record<string, string | string[]>>(
     isReviewMode ? (reviewUserAnswers || {}) : {}
   );
   const [showCalculator, setShowCalculator] = useState(false);
@@ -218,7 +218,7 @@ export default function TestPage() {
   // Proctoring removed
 
   const submitTestMutation = useMutation({
-    mutationFn: async (answers: Record<string, string>) => {
+    mutationFn: async (answers: Record<string, string | string[]>) => {
   // Proctoring removed: no action needed here.
 
       try {
@@ -547,10 +547,38 @@ export default function TestPage() {
   const currentQuestionInfo = getQuestionNumberInSubject(currentQuestionIndex);
 
   const handleAnswerSelect = (questionId: string, answerId: string) => {
-    setUserAnswers(prev => ({
-      ...prev,
-      [questionId]: answerId,
-    }));
+    const question = allQuestions.find(q => q.id === questionId);
+    if (!question) return;
+    
+    const isMultipleChoice = question.answers.length === 8;
+    
+    if (isMultipleChoice) {
+      // Multiple choice: toggle answer in array
+      setUserAnswers(prev => {
+        const current = prev[questionId];
+        const currentArray = Array.isArray(current) ? current : [];
+        
+        if (currentArray.includes(answerId)) {
+          // Remove if already selected
+          return {
+            ...prev,
+            [questionId]: currentArray.filter(id => id !== answerId),
+          };
+        } else {
+          // Add if not selected
+          return {
+            ...prev,
+            [questionId]: [...currentArray, answerId],
+          };
+        }
+      });
+    } else {
+      // Single choice: replace with new answer
+      setUserAnswers(prev => ({
+        ...prev,
+        [questionId]: answerId,
+      }));
+    }
   };
 
   const handleSubmitTest = () => {
@@ -699,8 +727,17 @@ export default function TestPage() {
               <CardContent className="space-y-6">
                 <div className={`flex gap-6 ${currentQuestion?.imageUrl ? 'items-start' : ''}`}>
                   {/* Текст вопроса */}
-                  <div className="flex-1 text-lg text-foreground leading-relaxed">
-                    {currentQuestion?.text}
+                  <div className="flex-1">
+                    <div className="text-lg text-foreground leading-relaxed">
+                      {currentQuestion?.text}
+                    </div>
+                    
+                    {/* Multiple choice hint */}
+                    {currentQuestion?.answers.length === 8 && !isReviewMode && (
+                      <div className="mt-2 text-sm text-muted-foreground italic">
+                        Выберите 3 правильных ответа (2 балла за полностью верный ответ)
+                      </div>
+                    )}
                   </div>
                   
                   {/* Изображение вопроса справа */}
@@ -723,8 +760,14 @@ export default function TestPage() {
                 
                 <div className="space-y-3">
                   {currentQuestion?.answers.map((answer, index) => {
+                    // Determine if this is multiple choice (8 answers) or single choice (5 answers)
+                    const isMultipleChoice = currentQuestion.answers.length === 8;
+                    
                     // Определяем, выбран ли этот ответ
-                    const isSelected = userAnswers[currentQuestion.id] === answer.id;
+                    const userAnswer = userAnswers[currentQuestion.id];
+                    const isSelected = isMultipleChoice 
+                      ? Array.isArray(userAnswer) && userAnswer.includes(answer.id)
+                      : userAnswer === answer.id;
                     
                     // Определяем стиль для режима просмотра результатов
                     const getAnswerStyle = () => {
@@ -732,29 +775,29 @@ export default function TestPage() {
                       if (!isReviewMode) {
                         if (isSelected) {
                           // Выбранный ответ - синяя подсветка
-                          return "w-full p-4 rounded-lg border-2 border-blue-500 bg-blue-50 text-blue-500 cursor-pointer transition-colors text-left";
+                          return "w-full p-4 rounded-lg border-2 border-blue-500 bg-blue-50 text-blue-500 cursor-pointer transition-colors text-left flex items-start gap-3";
                         }
                         // Обычный невыбранный ответ
-                        return "w-full p-4 rounded-lg border border-border hover:bg-muted/50 cursor-pointer transition-colors text-left";
+                        return "w-full p-4 rounded-lg border border-border hover:bg-muted/50 cursor-pointer transition-colors text-left flex items-start gap-3";
                       }
                       
-                      const isUserAnswer = userAnswers[currentQuestion.id] === answer.id;
+                      const isUserAnswer = isMultipleChoice
+                        ? Array.isArray(userAnswer) && userAnswer.includes(answer.id)
+                        : userAnswer === answer.id;
                       const isCorrectAnswer = answer.isCorrect === true;
-                      
-                      // Подробное логирование первого вопроса
                       
                       if (isUserAnswer && isCorrectAnswer) {
                         // Мой правильный ответ - синий
-                        return "w-full p-4 rounded-lg border-2 border-blue-500 bg-blue-50 text-blue-500 transition-colors text-left";
+                        return "w-full p-4 rounded-lg border-2 border-blue-500 bg-blue-50 text-blue-500 transition-colors text-left flex items-start gap-3";
                       } else if (isUserAnswer && !isCorrectAnswer) {
                         // Мой неправильный ответ - красный  
-                        return "w-full p-4 rounded-lg border-2 border-red-500 bg-red-50 text-red-800 transition-colors text-left";
+                        return "w-full p-4 rounded-lg border-2 border-red-500 bg-red-50 text-red-800 transition-colors text-left flex items-start gap-3";
                       } else if (!isUserAnswer && isCorrectAnswer) {
                         // Правильный ответ (где я не отвечал) - зеленый
-                        return "w-full p-4 rounded-lg border-2 border-green-500 bg-green-50 text-green-800 transition-colors text-left";
+                        return "w-full p-4 rounded-lg border-2 border-green-500 bg-green-50 text-green-800 transition-colors text-left flex items-start gap-3";
                       } else {
                         // Неправильный ответ (где я не отвечал) - обычный серый
-                        return "w-full p-4 rounded-lg border border-border bg-muted/20 transition-colors opacity-60 text-left";
+                        return "w-full p-4 rounded-lg border border-border bg-muted/20 transition-colors opacity-60 text-left flex items-start gap-3";
                       }
                     };
 
@@ -767,12 +810,38 @@ export default function TestPage() {
                         disabled={isReviewMode}
                         data-testid={`button-answer-${answer.id}`}
                       >
-                        <span className="font-medium mr-3">
-                          {String.fromCharCode(65 + index)}.
-                        </span>
-                        {answer.text}
+                        {/* Checkbox or Radio indicator */}
+                        {!isReviewMode && (
+                          <div className="flex-shrink-0 mt-0.5">
+                            {isMultipleChoice ? (
+                              // Checkbox for multiple choice
+                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                                isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-400'
+                              }`}>
+                                {isSelected && <span className="text-white text-xs">✓</span>}
+                              </div>
+                            ) : (
+                              // Radio for single choice
+                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                isSelected ? 'border-blue-500' : 'border-gray-400'
+                              }`}>
+                                {isSelected && <div className="w-3 h-3 rounded-full bg-blue-500"></div>}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        <div className="flex-1">
+                          <span className="font-medium mr-3">
+                            {String.fromCharCode(65 + index)}.
+                          </span>
+                          {answer.text}
+                        </div>
+                        
                         {isReviewMode && (() => {
-                          const isUserAnswer = userAnswers[currentQuestion.id] === answer.id;
+                          const isUserAnswer = isMultipleChoice
+                            ? Array.isArray(userAnswer) && userAnswer.includes(answer.id)
+                            : userAnswer === answer.id;
                           const isCorrectAnswer = answer.isCorrect === true;
                           
                           if (isUserAnswer && isCorrectAnswer) {

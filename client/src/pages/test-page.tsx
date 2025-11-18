@@ -578,6 +578,13 @@ export default function TestPage() {
         ...prev,
         [questionId]: answerId,
       }));
+      
+      // Issue #5: Auto-advance to next question after 400ms for single choice questions
+      setTimeout(() => {
+        if (currentQuestionIndex < allQuestions.length - 1) {
+          setCurrentQuestionIndex(currentQuestionIndex + 1);
+        }
+      }, 400);
     }
   };
 
@@ -722,16 +729,16 @@ export default function TestPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className={`flex gap-6 ${currentQuestion?.imageUrl ? 'items-start' : ''}`}>
+                <div className={`flex flex-col md:flex-row gap-4 md:gap-6 ${currentQuestion?.imageUrl ? 'md:items-start' : ''}`}>
                   {/* Текст вопроса */}
                   <div className="flex-1">
-                    <div className="text-lg text-foreground leading-relaxed">
+                    <div className="text-base md:text-lg text-foreground leading-relaxed">
                       {currentQuestion?.text}
                     </div>
                     
                     {/* Multiple choice hint */}
                     {currentQuestion?.answers.length === 8 && !isReviewMode && (
-                      <div className="mt-2 text-sm text-muted-foreground italic">
+                      <div className="mt-2 text-xs md:text-sm text-muted-foreground italic">
                         Выберите 3 правильных ответа (2 балла за полностью верный ответ)
                       </div>
                     )}
@@ -740,7 +747,7 @@ export default function TestPage() {
                   {/* Изображение вопроса справа */}
                   {currentQuestion?.imageUrl && (
                     <div 
-                      className="flex-shrink-0 cursor-pointer transition-transform hover:scale-105"
+                      className="flex-shrink-0 cursor-pointer transition-transform hover:scale-105 w-full md:w-auto"
                       onClick={() => {
                         setSelectedImage(currentQuestion.imageUrl!);
                         setImageModalOpen(true);
@@ -749,7 +756,7 @@ export default function TestPage() {
                       <img 
                         src={currentQuestion.imageUrl} 
                         alt="Изображение к вопросу" 
-                        className="w-[400px] h-[400px] object-contain rounded-lg border shadow-sm bg-muted/30"
+                        className="w-full md:w-[400px] h-auto md:h-[400px] max-h-[300px] md:max-h-[400px] object-contain rounded-lg border shadow-sm bg-muted/30"
                       />
                     </div>
                   )}
@@ -772,10 +779,10 @@ export default function TestPage() {
                       if (!isReviewMode) {
                         if (isSelected) {
                           // Выбранный ответ - синяя подсветка
-                          return "w-full p-4 rounded-lg border-2 border-blue-500 bg-blue-50 text-blue-500 cursor-pointer transition-colors text-left flex items-start gap-3";
+                          return "w-full p-3 md:p-4 rounded-lg border-2 border-blue-500 bg-blue-50 text-blue-500 cursor-pointer transition-colors text-left flex items-start gap-2 md:gap-3 min-h-[48px] touch-manipulation";
                         }
                         // Обычный невыбранный ответ
-                        return "w-full p-4 rounded-lg border border-border hover:bg-muted/50 cursor-pointer transition-colors text-left flex items-start gap-3";
+                        return "w-full p-3 md:p-4 rounded-lg border border-border hover:bg-muted/50 cursor-pointer transition-colors text-left flex items-start gap-2 md:gap-3 min-h-[48px] touch-manipulation";
                       }
                       
                       const isUserAnswer = isMultipleChoice
@@ -785,16 +792,16 @@ export default function TestPage() {
                       
                       if (isUserAnswer && isCorrectAnswer) {
                         // Мой правильный ответ - синий
-                        return "w-full p-4 rounded-lg border-2 border-blue-500 bg-blue-50 text-blue-500 transition-colors text-left flex items-start gap-3";
+                        return "w-full p-3 md:p-4 rounded-lg border-2 border-blue-500 bg-blue-50 text-blue-500 transition-colors text-left flex items-start gap-2 md:gap-3 min-h-[48px]";
                       } else if (isUserAnswer && !isCorrectAnswer) {
                         // Мой неправильный ответ - красный  
-                        return "w-full p-4 rounded-lg border-2 border-red-500 bg-red-50 text-red-800 transition-colors text-left flex items-start gap-3";
+                        return "w-full p-3 md:p-4 rounded-lg border-2 border-red-500 bg-red-50 text-red-800 transition-colors text-left flex items-start gap-2 md:gap-3 min-h-[48px]";
                       } else if (!isUserAnswer && isCorrectAnswer) {
                         // Правильный ответ (где я не отвечал) - зеленый
-                        return "w-full p-4 rounded-lg border-2 border-green-500 bg-green-50 text-green-800 transition-colors text-left flex items-start gap-3";
+                        return "w-full p-3 md:p-4 rounded-lg border-2 border-green-500 bg-green-50 text-green-800 transition-colors text-left flex items-start gap-2 md:gap-3 min-h-[48px]";
                       } else {
                         // Неправильный ответ (где я не отвечал) - обычный серый
-                        return "w-full p-4 rounded-lg border border-border bg-muted/20 transition-colors opacity-60 text-left flex items-start gap-3";
+                        return "w-full p-3 md:p-4 rounded-lg border border-border bg-muted/20 transition-colors opacity-60 text-left flex items-start gap-2 md:gap-3 min-h-[48px]";
                       }
                     };
 
@@ -829,10 +836,10 @@ export default function TestPage() {
                         )}
                         
                         <div className="flex-1">
-                          <span className="font-medium mr-3">
+                          <span className="font-medium mr-2 text-sm md:text-base">
                             {String.fromCharCode(65 + index)}.
                           </span>
-                          {answer.text}
+                          <span className="text-sm md:text-base">{answer.text}</span>
                         </div>
                         
                         {isReviewMode && (() => {

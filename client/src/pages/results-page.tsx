@@ -392,45 +392,7 @@ export default function ResultsPage() {
               <i className="fas fa-home mr-2"></i>
               На главную
             </Button>
-            {(
-              (testData && userAnswers) || testResult
-            ) && (
-              <Button
-                variant="ghost"
-                onClick={async () => {                  try {
-                    // ВСЕГДА используем API для режима просмотра, чтобы получить isCorrect флаги
-                    console.log('🌐 FETCHING FROM API for review mode');                    const res = await fetch(`/api/test-results/${(testResult as any).id}/review`, { credentials: 'include' });
-                    if (!res.ok) throw new Error('API failed');
-                    const payload = await res.json();
-                    
-                    console.log('🌐 API SUCCESS - First question answers from API:', 
-                      payload.testData?.testData?.[0]?.questions?.[0]?.answers?.map((a: any) => ({
-                        id: a.id,
-                        text: a.text.substring(0, 20),
-                        isCorrect: a.isCorrect,
-                        hasIsCorrect: 'isCorrect' in a
-                      }))
-                    );
-                    
-                    const variantId = payload.result?.variantId || payload.variant?.id;
-                    if (variantId) {
-                      // payload.testData уже имеет правильную структуру { variant, testData }
-
-                      setLocation(`/test/${variantId}?review=true`, { state: { review: true, testData: payload.testData, userAnswers: payload.userAnswers } });
-                    }
-                  } catch (e) {
-                    // fallback: notify and do nothing
-                    console.error('Failed to load review data', e);
-                    alert('Не удалось загрузить данные для просмотра теста');
-                  }
-                }}
-                className="flex-1 sm:flex-none"
-                data-testid="button-review-test"
-              >
-                <i className="fas fa-eye mr-2"></i>
-                Тестті қарау
-              </Button>
-            )}
+            {/* Issue #3: Removed "Тестті қарау" button to prevent returning to completed tests */}
           </div>
         </div>
       </main>

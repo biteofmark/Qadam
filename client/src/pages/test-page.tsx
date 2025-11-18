@@ -598,6 +598,8 @@ export default function TestPage() {
             questions={allQuestions.map(q => ({
               id: q.id,
               text: q.text,
+              imageUrl: q.imageUrl,
+              solutionImageUrl: q.solutionImageUrl,
               answers: q.answers,
               subjectName: finalTestData.testData.find(td => td.questions.some(tq => tq.id === q.id))?.subject.name || ""
             }))}

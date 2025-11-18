@@ -1337,6 +1337,12 @@ function QuestionEditor({ question, subject, onBack }: QuestionEditorProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showAnswers, setShowAnswers] = useState(false);
+  const [isEditingText, setIsEditingText] = useState(false);
+  const [questionText, setQuestionText] = useState(question.text);
+  const [imageUrl, setImageUrl] = useState(question.imageUrl || '');
+  const [solutionImageUrl, setSolutionImageUrl] = useState(question.solutionImageUrl || '');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingSolutionImage, setUploadingSolutionImage] = useState(false);
 
   const { data: answers = [], isLoading: answersLoading } = useQuery({
     queryKey: [`/api/questions/${question.id}/answers`],
@@ -1346,6 +1352,83 @@ function QuestionEditor({ question, subject, onBack }: QuestionEditorProps) {
     },
     enabled: showAnswers,
   });
+
+  const updateQuestionMutation = useMutation({
+    mutationFn: async (updates: Partial<Question>) => {
+      await apiRequest("PUT", `/api/questions/${question.id}`, updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/subjects/${subject.id}/questions`] });
+      toast({ title: "Успешно", description: "Вопрос обновлен" });
+      setIsEditingText(false);
+    },
+    onError: () => {
+      toast({ title: "Ошибка", description: "Не удалось обновить вопрос", variant: "destructive" });
+    },
+  });
+
+  const handleSaveText = () => {
+    if (questionText.trim()) {
+      updateQuestionMutation.mutate({ text: questionText.trim() });
+    }
+  };
+
+  const handleImageUpload = async (file: File, type: 'question' | 'solution') => {
+    const formData = new FormData();
+    formData.append('image', file);
+    
+    try {
+      if (type === 'question') {
+        setUploadingImage(true);
+      } else {
+        setUploadingSolutionImage(true);
+      }
+      
+      const res = await fetch('/api/upload/question-image', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      
+      if (!res.ok) {
+        throw new Error('Upload failed');
+      }
+      
+      const data = await res.json();
+      
+      if (type === 'question') {
+        setImageUrl(data.url);
+        updateQuestionMutation.mutate({ imageUrl: data.url });
+      } else {
+        setSolutionImageUrl(data.url);
+        updateQuestionMutation.mutate({ solutionImageUrl: data.url });
+      }
+      
+      toast({ title: "Успешно", description: "Изображение загружено" });
+    } catch (error) {
+      toast({ 
+        title: "Ошибка", 
+        description: "Не удалось загрузить изображение", 
+        variant: "destructive" 
+      });
+    } finally {
+      if (type === 'question') {
+        setUploadingImage(false);
+      } else {
+        setUploadingSolutionImage(false);
+      }
+    }
+  };
+
+  const handleRemoveImage = (type: 'question' | 'solution') => {
+    if (type === 'question') {
+      setImageUrl('');
+      updateQuestionMutation.mutate({ imageUrl: '' });
+    } else {
+      setSolutionImageUrl('');
+      updateQuestionMutation.mutate({ solutionImageUrl: '' });
+    }
+  };
 
   const reorderAnswersMutation = useMutation({
     mutationFn: async (answerIds: string[]) => {
@@ -1416,11 +1499,118 @@ function QuestionEditor({ question, subject, onBack }: QuestionEditorProps) {
       {/* Question Card */}
       <Card>
         <CardContent className="p-6">
-          <div className="space-y-4">
+          <div className="space-y-6">
+            {/* Question Text Editing */}
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Текст вопроса</label>
-              <div className="mt-2 p-3 bg-muted/50 rounded-lg">
-                <p className="text-sm">{question.text}</p>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-muted-foreground">Текст вопроса</label>
+                {!isEditingText && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => setIsEditingText(true)}
+                  >
+                    <Edit className="h-3 w-3 mr-1" />
+                    Редактировать
+                  </Button>
+                )}
+              </div>
+              {isEditingText ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={questionText}
+                    onChange={(e) => setQuestionText(e.target.value)}
+                    className="w-full min-h-[100px] p-3 border rounded-lg resize-y"
+                    placeholder="Введите текст вопроса"
+                  />
+                  <div className="flex gap-2">
+                    <Button onClick={handleSaveText} disabled={updateQuestionMutation.isPending}>
+                      Сохранить
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        setQuestionText(question.text);
+                        setIsEditingText(false);
+                      }}
+                    >
+                      Отмена
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-2 p-3 bg-muted/50 rounded-lg">
+                  <p className="text-sm whitespace-pre-wrap">{questionText}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Question Image Upload */}
+            <div className="border-t pt-4">
+              <label className="text-sm font-medium text-muted-foreground">Изображение вопроса</label>
+              <div className="mt-2 space-y-2">
+                {imageUrl ? (
+                  <div className="relative inline-block">
+                    <img src={imageUrl} alt="Question" className="max-w-sm rounded-lg border" />
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="absolute top-2 right-2"
+                      onClick={() => handleRemoveImage('question')}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(file, 'question');
+                      }}
+                      disabled={uploadingImage}
+                      className="max-w-md"
+                    />
+                    {uploadingImage && <span className="text-sm text-muted-foreground">Загрузка...</span>}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Solution Image Upload */}
+            <div className="border-t pt-4">
+              <label className="text-sm font-medium text-muted-foreground">Изображение решения</label>
+              <p className="text-xs text-muted-foreground mt-1 mb-2">Будет показано только после завершения теста</p>
+              <div className="mt-2 space-y-2">
+                {solutionImageUrl ? (
+                  <div className="relative inline-block">
+                    <img src={solutionImageUrl} alt="Solution" className="max-w-sm rounded-lg border" />
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="absolute top-2 right-2"
+                      onClick={() => handleRemoveImage('solution')}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(file, 'solution');
+                      }}
+                      disabled={uploadingSolutionImage}
+                      className="max-w-md"
+                    />
+                    {uploadingSolutionImage && <span className="text-sm text-muted-foreground">Загрузка...</span>}
+                  </div>
+                )}
               </div>
             </div>
 

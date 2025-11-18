@@ -8,7 +8,9 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 interface TestQuestion {
   id: string;
   text: string;
-  answers: Array<{ id: string; text: string; }>;
+  imageUrl?: string;
+  solutionImageUrl?: string;
+  answers: Array<{ id: string; text: string; isCorrect?: boolean; }>;
   subjectName?: string;
 }
 
@@ -201,10 +203,36 @@ export default function MobileTestNavigation({
               <h2 className="text-base font-semibold mb-3">
                 Вопрос {currentIndex + 1}
               </h2>
-              <p className="text-foreground leading-relaxed max-w-full break-words">
+              <p className="text-foreground leading-relaxed max-w-full break-words mb-3">
                 {currentQuestion?.text}
               </p>
+              
+              {/* Question Image */}
+              {currentQuestion?.imageUrl && (
+                <div className="mt-3">
+                  <img 
+                    src={currentQuestion.imageUrl} 
+                    alt="Изображение к вопросу" 
+                    className="w-full rounded-lg border shadow-sm bg-muted/30"
+                  />
+                </div>
+              )}
             </div>
+            
+            {/* Solution Image - Only in review mode */}
+            {isReviewMode && currentQuestion?.solutionImageUrl && (
+              <div className="mb-4 pb-4 border-b">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-2">
+                  <i className="fas fa-lightbulb text-yellow-500"></i>
+                  <span>Решение:</span>
+                </div>
+                <img 
+                  src={currentQuestion.solutionImageUrl} 
+                  alt="Решение задачи" 
+                  className="w-full rounded-lg border shadow-md bg-muted/30"
+                />
+              </div>
+            )}
             
             <div className="space-y-2.5">
               {currentQuestion?.answers.map((answer, index) => {

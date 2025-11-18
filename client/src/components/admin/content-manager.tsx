@@ -118,7 +118,11 @@ function VariantsView({ block, onSelectVariant }: VariantsViewProps) {
       });
     },
     onSuccess: () => {
+      // Issue #4: Comprehensive query invalidation for real-time updates
       queryClient.invalidateQueries({ queryKey: [`/api/blocks/${block.id}/variants`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/blocks", block.id, "variants"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/blocks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/public/blocks"] });
       setNewVariantName("");
       setIsFree(true);
       toast({ title: "Успешно", description: "Вариант создан" });
@@ -133,7 +137,11 @@ function VariantsView({ block, onSelectVariant }: VariantsViewProps) {
       await apiRequest("PUT", `/api/variants/${variant.id}`, variant);
     },
     onSuccess: () => {
+      // Issue #4: Comprehensive query invalidation for real-time updates
       queryClient.invalidateQueries({ queryKey: [`/api/blocks/${block.id}/variants`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/blocks", block.id, "variants"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/blocks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/public/blocks"] });
       setEditingVariant(null);
       toast({ title: "Успешно", description: "Вариант обновлен" });
     },
@@ -147,7 +155,11 @@ function VariantsView({ block, onSelectVariant }: VariantsViewProps) {
       await apiRequest("DELETE", `/api/variants/${variantId}`);
     },
     onSuccess: () => {
+      // Issue #4: Comprehensive query invalidation for real-time updates
       queryClient.invalidateQueries({ queryKey: [`/api/blocks/${block.id}/variants`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/blocks", block.id, "variants"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/blocks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/public/blocks"] });
       toast({ title: "Успешно", description: "Вариант удален" });
     },
     onError: () => {
@@ -1424,6 +1436,146 @@ function QuestionEditor({ question, subject, onBack }: QuestionEditorProps) {
               </div>
             </div>
 
+            {/* Issue #6: Image Upload Section */}
+            <div className="border-t pt-4">
+              <label className="text-sm font-medium text-muted-foreground">Изображение вопроса</label>
+              <div className="mt-2 space-y-2">
+                {question.imageUrl && (
+                  <div className="relative inline-block">
+                    <img 
+                      src={question.imageUrl} 
+                      alt="Question image" 
+                      className="max-w-xs rounded-lg border"
+                    />
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="absolute top-2 right-2"
+                      onClick={() => {
+                        // TODO: Implement image removal
+                        toast({ title: "Функция в разработке", description: "Удаление изображения будет добавлено" });
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+                <div>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const formData = new FormData();
+                        formData.append('image', file);
+                        
+                        try {
+                          const res = await fetch('/api/upload/question-image', {
+                            method: 'POST',
+                            body: formData,
+                            credentials: 'include'
+                          });
+                          
+                          if (!res.ok) throw new Error('Upload failed');
+                          
+                          const data = await res.json();
+                          
+                          // Update question with image URL
+                          await apiRequest("PUT", `/api/questions/${question.id}`, {
+                            ...question,
+                            imageUrl: data.url
+                          });
+                          
+                          queryClient.invalidateQueries({ queryKey: [`/api/subjects/${subject.id}/questions`] });
+                          toast({ title: "Успешно", description: "Изображение загружено" });
+                        } catch (error) {
+                          toast({ 
+                            title: "Ошибка", 
+                            description: "Не удалось загрузить изображение", 
+                            variant: "destructive" 
+                          });
+                        }
+                      }
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Загрузите изображение для вопроса (макс. 5MB)
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Solution Image Upload */}
+            <div className="border-t pt-4">
+              <label className="text-sm font-medium text-muted-foreground">Изображение решения</label>
+              <div className="mt-2 space-y-2">
+                {question.solutionImageUrl && (
+                  <div className="relative inline-block">
+                    <img 
+                      src={question.solutionImageUrl} 
+                      alt="Solution image" 
+                      className="max-w-xs rounded-lg border"
+                    />
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="absolute top-2 right-2"
+                      onClick={() => {
+                        // TODO: Implement solution image removal
+                        toast({ title: "Функция в разработке", description: "Удаление изображения будет добавлено" });
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+                <div>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const formData = new FormData();
+                        formData.append('image', file);
+                        
+                        try {
+                          const res = await fetch('/api/upload/question-image', {
+                            method: 'POST',
+                            body: formData,
+                            credentials: 'include'
+                          });
+                          
+                          if (!res.ok) throw new Error('Upload failed');
+                          
+                          const data = await res.json();
+                          
+                          // Update question with solution image URL
+                          await apiRequest("PUT", `/api/questions/${question.id}`, {
+                            ...question,
+                            solutionImageUrl: data.url
+                          });
+                          
+                          queryClient.invalidateQueries({ queryKey: [`/api/subjects/${subject.id}/questions`] });
+                          toast({ title: "Успешно", description: "Изображение решения загружено" });
+                        } catch (error) {
+                          toast({ 
+                            title: "Ошибка", 
+                            description: "Не удалось загрузить изображение", 
+                            variant: "destructive" 
+                          });
+                        }
+                      }
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Загрузите изображение решения (показывается после теста)
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {/* Answers Toggle */}
             <div className="border-t pt-4">
               <Button
@@ -1510,7 +1662,9 @@ function BlocksView({ onSelectBlock }: BlocksViewProps) {
       });
     },
     onSuccess: () => {
+      // Issue #4: Comprehensive query invalidation for real-time updates
       queryClient.invalidateQueries({ queryKey: ["/api/blocks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/public/blocks"] });
       setNewBlockName("");
       setHasCalculator(false);
       setHasPeriodicTable(false);
@@ -1526,7 +1680,9 @@ function BlocksView({ onSelectBlock }: BlocksViewProps) {
       await apiRequest("PUT", `/api/blocks/${block.id}`, block);
     },
     onSuccess: () => {
+      // Issue #4: Comprehensive query invalidation for real-time updates
       queryClient.invalidateQueries({ queryKey: ["/api/blocks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/public/blocks"] });
       setEditingBlock(null);
       toast({ title: "Успешно", description: "Блок обновлен" });
     },
@@ -1540,7 +1696,9 @@ function BlocksView({ onSelectBlock }: BlocksViewProps) {
       await apiRequest("DELETE", `/api/blocks/${blockId}`);
     },
     onSuccess: () => {
+      // Issue #4: Comprehensive query invalidation for real-time updates
       queryClient.invalidateQueries({ queryKey: ["/api/blocks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/public/blocks"] });
       toast({ title: "Успешно", description: "Блок удален" });
     },
     onError: () => {

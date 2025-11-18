@@ -115,14 +115,14 @@ export default function MobileTestNavigation({
 
   return (
     <div className="md:hidden">
-      {/* Mobile Header */}
-      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur border-b border-border p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center space-x-3">
+      {/* Mobile Header - Reduced height from ~120px to ~80px */}
+      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur border-b border-border px-3 py-2">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center space-x-2">
             <Sheet open={showNavigation} onOpenChange={setShowNavigation}>
               <SheetTrigger asChild>
-                <Button variant="outline" size="sm" data-testid="button-mobile-navigation">
-                  <i className="fas fa-th-large mr-2"></i>
+                <Button variant="outline" size="sm" className="h-9" data-testid="button-mobile-navigation">
+                  <i className="fas fa-th-large mr-1"></i>
                   {currentIndex + 1}/{questions.length}
                 </Button>
               </SheetTrigger>
@@ -173,46 +173,46 @@ export default function MobileTestNavigation({
               </SheetContent>
             </Sheet>
             
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-xs px-2 py-0.5">
               {currentQuestion?.subjectName}
             </Badge>
           </div>
           
-          <div className="text-sm font-mono text-muted-foreground">
+          <div className="text-xs font-mono text-muted-foreground">
             {formatTime(timeLeft)}
           </div>
         </div>
         
-        <Progress value={progress} className="h-2" />
+        <Progress value={progress} className="h-1.5" />
       </div>
 
-      {/* Question Content with Swipe */}
+      {/* Question Content with Swipe - Fixed height calculation to account for ~80px header + ~76px bottom nav + padding */}
       <div 
         ref={containerRef}
-        className="p-4 pb-24 min-h-[calc(100vh-200px)] touch-pan-x"
+        className="p-3 pb-20 min-h-[calc(100vh-156px)] touch-pan-x"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         data-testid="mobile-question-container"
       >
         <Card>
-          <CardContent className="p-6">
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold mb-4">
+          <CardContent className="p-4">
+            <div className="mb-4">
+              <h2 className="text-base font-semibold mb-3">
                 Вопрос {currentIndex + 1}
               </h2>
-              <p className="text-foreground leading-relaxed">
+              <p className="text-foreground leading-relaxed max-w-full break-words">
                 {currentQuestion?.text}
               </p>
             </div>
             
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {currentQuestion?.answers.map((answer, index) => {
                 // Определяем стиль для режима просмотра результатов
                 const getAnswerStyle = () => {
                   if (!isReviewMode) {
                     return `
-                      flex items-start space-x-3 p-4 rounded-lg border cursor-pointer transition-all
+                      flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-all min-h-[44px]
                       ${userAnswers[currentQuestion.id] === answer.id 
                         ? 'border-primary bg-primary/5' 
                         : 'border-border hover:bg-muted/50'
@@ -225,23 +225,23 @@ export default function MobileTestNavigation({
                   
                   if (isCorrectAnswer && isUserAnswer) {
                     // Мой правильный ответ - синий
-                    return "flex items-start space-x-3 p-4 rounded-lg border-2 border-blue-500 bg-blue-50 text-blue-500 transition-all";
+                    return "flex items-start space-x-3 p-3 rounded-lg border-2 border-blue-500 bg-blue-50 text-blue-500 transition-all min-h-[44px]";
                   } else if (isCorrectAnswer && !isUserAnswer) {
                     // Правильный ответ (не мой) - зеленый
-                    return "flex items-start space-x-3 p-4 rounded-lg border-2 border-green-500 bg-green-50 text-green-800 transition-all";
+                    return "flex items-start space-x-3 p-3 rounded-lg border-2 border-green-500 bg-green-50 text-green-800 transition-all min-h-[44px]";
                   } else if (isUserAnswer && !isCorrectAnswer) {
                     // Мой неправильный ответ - красный
-                    return "flex items-start space-x-3 p-4 rounded-lg border-2 border-red-500 bg-red-50 text-red-800 transition-all";
+                    return "flex items-start space-x-3 p-3 rounded-lg border-2 border-red-500 bg-red-50 text-red-800 transition-all min-h-[44px]";
                   } else {
                     // Обычный неправильный ответ
-                    return "flex items-start space-x-3 p-4 rounded-lg border border-border bg-muted/20 transition-all opacity-60";
+                    return "flex items-start space-x-3 p-3 rounded-lg border border-border bg-muted/20 transition-all opacity-60 min-h-[44px]";
                   }
                 };
 
                 const getRadioStyle = () => {
                   if (!isReviewMode) {
                     return `
-                      w-6 h-6 rounded-full border-2 flex items-center justify-center mt-1 flex-shrink-0
+                      w-11 h-11 rounded-full border-2 flex items-center justify-center flex-shrink-0
                       ${userAnswers[currentQuestion.id] === answer.id 
                         ? 'border-primary bg-primary' 
                         : 'border-muted-foreground'
@@ -254,16 +254,16 @@ export default function MobileTestNavigation({
                   
                   if (isCorrectAnswer && isUserAnswer) {
                     // Мой правильный ответ - синий
-                    return "w-6 h-6 rounded-full border-2 border-blue-500 bg-blue-500 flex items-center justify-center mt-1 flex-shrink-0";
+                    return "w-11 h-11 rounded-full border-2 border-blue-500 bg-blue-500 flex items-center justify-center flex-shrink-0";
                   } else if (isCorrectAnswer && !isUserAnswer) {
                     // Правильный ответ (не мой) - зеленый
-                    return "w-6 h-6 rounded-full border-2 border-green-600 bg-green-600 flex items-center justify-center mt-1 flex-shrink-0";
+                    return "w-11 h-11 rounded-full border-2 border-green-600 bg-green-600 flex items-center justify-center flex-shrink-0";
                   } else if (isUserAnswer && !isCorrectAnswer) {
                     // Мой неправильный ответ - красный
-                    return "w-6 h-6 rounded-full border-2 border-red-600 bg-red-600 flex items-center justify-center mt-1 flex-shrink-0";
+                    return "w-11 h-11 rounded-full border-2 border-red-600 bg-red-600 flex items-center justify-center flex-shrink-0";
                   } else {
                     // Обычный неправильный ответ
-                    return "w-6 h-6 rounded-full border-2 border-muted-foreground flex items-center justify-center mt-1 flex-shrink-0";
+                    return "w-11 h-11 rounded-full border-2 border-muted-foreground flex items-center justify-center flex-shrink-0";
                   }
                 };
 
@@ -279,30 +279,37 @@ export default function MobileTestNavigation({
                         }
                       }
                     }}
-                    style={{ minHeight: '44px' }}
                     data-testid={`mobile-answer-${answer.id}`}
                   >
                     <div className={getRadioStyle()}>
                       {((isReviewMode && (answer as any).isCorrect) || (!isReviewMode && userAnswers[currentQuestion.id] === answer.id)) && (
-                        <div className="w-2 h-2 rounded-full bg-white"></div>
+                        <div className="w-3 h-3 rounded-full bg-white"></div>
                       )}
                     </div>
-                    <div className="flex-1 flex items-center justify-between">
-                      <span className="font-medium mr-3">
-                        {String.fromCharCode(65 + index)}.
-                      </span>
-                      <span className="text-foreground">
-                        {answer.text}
-                        {isReviewMode && (answer as any).isCorrect && userAnswers[currentQuestion.id] === answer.id && (
-                          <span className="ml-2 text-blue-500">✓</span>
+                    <div className="flex-1 flex items-start min-h-[44px] py-1">
+                      <div className="flex flex-col w-full">
+                        <div className="flex items-start">
+                          <span className="font-medium mr-2 flex-shrink-0">
+                            {String.fromCharCode(65 + index)}.
+                          </span>
+                          <span className="text-foreground break-words leading-relaxed flex-1">
+                            {answer.text}
+                          </span>
+                        </div>
+                        {isReviewMode && (
+                          <div className="ml-5 mt-1">
+                            {(answer as any).isCorrect && userAnswers[currentQuestion.id] === answer.id && (
+                              <span className="text-blue-500 font-bold">✓</span>
+                            )}
+                            {(answer as any).isCorrect && userAnswers[currentQuestion.id] !== answer.id && (
+                              <span className="text-green-600 font-bold">✓</span>
+                            )}
+                            {userAnswers[currentQuestion.id] === answer.id && !(answer as any).isCorrect && (
+                              <span className="text-red-600 font-bold">✗</span>
+                            )}
+                          </div>
                         )}
-                        {isReviewMode && (answer as any).isCorrect && userAnswers[currentQuestion.id] !== answer.id && (
-                          <span className="ml-2 text-green-600">✓</span>
-                        )}
-                        {isReviewMode && userAnswers[currentQuestion.id] === answer.id && !(answer as any).isCorrect && (
-                          <span className="ml-2 text-red-600">✗</span>
-                        )}
-                      </span>
+                      </div>
                     </div>
                   </div>
                 );
@@ -312,21 +319,24 @@ export default function MobileTestNavigation({
         </Card>
         
         {/* Swipe Hint */}
-        <div className="text-center text-xs text-muted-foreground mt-4">
+        <div className="text-center text-xs text-muted-foreground mt-3">
           <i className="fas fa-hand-pointer mr-1"></i>
           Проведите влево/вправо для навигации
         </div>
       </div>
 
-      {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t border-border p-4 safe-area-padding-bottom">
-        <div className="flex justify-between items-center">
+      {/* Bottom Navigation - Using env(safe-area-inset-bottom) for iOS notch support */}
+      <div 
+        className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t border-border p-3"
+        style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
+      >
+        <div className="flex justify-between items-center gap-3">
           <Button
             variant="outline"
             size="lg"
             onClick={() => onQuestionChange(Math.max(0, currentIndex - 1))}
             disabled={currentIndex === 0}
-            className="min-w-[100px] h-12"
+            className="flex-1 h-12 min-h-[44px]"
             data-testid="mobile-button-previous"
           >
             <i className="fas fa-chevron-left mr-2"></i>
@@ -338,7 +348,7 @@ export default function MobileTestNavigation({
               size="lg"
               onClick={onSubmit}
               disabled={isSubmitting}
-              className="min-w-[140px] h-12 bg-accent hover:bg-accent/90"
+              className="flex-1 h-12 min-h-[44px] bg-accent hover:bg-accent/90"
               data-testid="mobile-button-submit"
             >
               {isSubmitting ? "Завершение..." : "Завершить тест"}
@@ -347,7 +357,7 @@ export default function MobileTestNavigation({
             <Button
               size="lg"
               onClick={() => onQuestionChange(Math.min(questions.length - 1, currentIndex + 1))}
-              className="min-w-[100px] h-12"
+              className="flex-1 h-12 min-h-[44px]"
               data-testid="mobile-button-next"
             >
               Далее
